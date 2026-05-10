@@ -7,6 +7,8 @@
 *.rsuser
 *.suo
 *.user
+!src/SocialApp.User/
+!src/SocialApp.User/**
 *.userosscache
 *.sln.docstates
 *.env
