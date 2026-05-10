@@ -105,4 +105,17 @@ public sealed class PostComponentTests
         deletePresenter.ViewModel!.Succeeded.Should().BeTrue();
         posts.FindById(original.Id)!.IsDeleted.Should().BeTrue();
     }
+
+    [Fact]
+    public void Delete_post_rejects_non_author_and_keeps_post_visible()
+    {
+        var posts = new InMemoryPostGateway();
+        var original = posts.Save(SocialPost.Create("@ada", "root"));
+        var controller = new DeletePostController(new DeletePostInteractor(posts, new DeletePostPresenter()));
+
+        Action delete = () => controller.Delete(original.Id, "@grace");
+
+        delete.Should().Throw<InvalidOperationException>().WithMessage("Only the author can delete the post.");
+        posts.FindById(original.Id)!.IsDeleted.Should().BeFalse();
+    }
 }
