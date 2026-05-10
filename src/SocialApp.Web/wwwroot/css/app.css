@@ -34,6 +34,15 @@ button.secondary {
     background: #334155;
 }
 
+button.danger {
+    background: #b42318;
+}
+
+button.compact {
+    min-height: 32px;
+    padding: 0 10px;
+}
+
 button:disabled {
     cursor: not-allowed;
     opacity: .6;
@@ -164,6 +173,13 @@ form {
 .post {
     border-top: 1px solid #e2e8f0;
     padding-top: 12px;
+}
+
+.post-header {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
 }
 
 .post p,

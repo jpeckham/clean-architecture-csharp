@@ -2,6 +2,7 @@
 @inject SocialApp.Web.Services.SocialAppApiClient Api
 @inject SocialApp.Web.Services.AppSession Session
 @inject NavigationManager Navigation
+@inject IJSRuntime Js
 
 <PageTitle>Feed - SocialApp</PageTitle>
 
@@ -37,7 +38,13 @@
                 @foreach (var item in posts)
                 {
                     <article class="post">
-                        <strong>@item.AuthorHandle</strong>
+                        <div class="post-header">
+                            <strong>@item.AuthorHandle</strong>
+                            @if (CanDelete(item))
+                            {
+                                <button type="button" class="danger compact" @onclick="() => DeletePostAsync(item)" disabled="@isBusy">Delete</button>
+                            }
+                        </div>
                         <p>@item.Content</p>
                     </article>
                 }
@@ -85,6 +92,28 @@
         });
     }
 
+    private async Task DeletePostAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        var confirmed = await Js.InvokeAsync<bool>("confirm", "Delete this post?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var result = await Api.DeletePostAsync(Session.SessionToken!, item.Id);
+            message = result?.Message ?? "Delete failed.";
+            await LoadPostsAsync();
+        });
+    }
+
     private async Task LoadPostsAsync()
     {
         if (!Session.IsLoggedIn)
@@ -114,6 +143,9 @@
             isBusy = false;
         }
     }
+
+    private bool CanDelete(SocialApp.Web.Services.PostSummaryResult item) =>
+        string.Equals(item.AuthorHandle, Session.Handle, StringComparison.OrdinalIgnoreCase);
 
     private void SignOut()
     {

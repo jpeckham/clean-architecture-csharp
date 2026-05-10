@@ -40,6 +40,13 @@ public sealed class SocialAppApiClient(HttpClient http)
         return await ReadAsync<CreatePostResult>(await http.SendAsync(message));
     }
 
+    public async Task<SimpleResult?> DeletePostAsync(string sessionToken, Guid postId)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Delete, $"/api/posts/{postId}");
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<SimpleResult>(await http.SendAsync(message));
+    }
+
     public async Task<RecentPostsResult?> GetRecentPostsAsync(string readerHandle, int limit = 20) =>
         await http.GetFromJsonAsync<RecentPostsResult>($"/api/posts/recent?readerHandle={Uri.EscapeDataString(readerHandle)}&limit={limit}");
 
