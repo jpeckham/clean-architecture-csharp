@@ -13,18 +13,61 @@ namespace SocialApp.Api.Tests;
 public sealed class SocialAppApiSliceTests
 {
     [Fact]
+    public async Task Creator_can_delete_post_through_api_and_remove_it_from_recent_posts()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var session = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", session.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Delete through API" });
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        var deleteResponse = await client.DeleteAsync($"/api/posts/{created!.Id}");
+
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await deleteResponse.Content.ReadFromJsonAsync<SimpleResult>();
+        result!.Succeeded.Should().BeTrue();
+        var recentPosts = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@ada&limit=20");
+        recentPosts!.Posts.Should().NotContain(p => p.Id == created.Id);
+    }
+
+    [Fact]
+    public async Task Delete_post_requires_valid_bearer_token()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+
+        var missingTokenResponse = await client.DeleteAsync($"/api/posts/{Guid.NewGuid()}");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", "missing-token");
+        var invalidTokenResponse = await client.DeleteAsync($"/api/posts/{Guid.NewGuid()}");
+
+        missingTokenResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        invalidTokenResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Non_author_cannot_delete_post_through_api()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Ada owns this" });
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        var deleteResponse = await client.DeleteAsync($"/api/posts/{created!.Id}");
+
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var recentPosts = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@ada&limit=20");
+        recentPosts!.Posts.Should().ContainSingle(p => p.Id == created.Id);
+    }
+
+    [Fact]
     public async Task Account_session_and_post_slice_runs_through_api()
     {
-        await using var factory = new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IUserGateway>();
-                services.RemoveAll<ISessionGateway>();
-                services.RemoveAll<IPostGateway>();
-                services.AddSingleton<IUserGateway, InMemoryUserGateway>();
-                services.AddSingleton<ISessionGateway, InMemorySessionGateway>();
-                services.AddSingleton<IPostGateway, InMemoryPostGateway>();
-            }));
+        await using var factory = CreateInMemoryFactory();
 
         var client = factory.CreateClient();
 
@@ -106,7 +149,35 @@ public sealed class SocialAppApiSliceTests
             email.Subject.Contains("Verify", StringComparison.OrdinalIgnoreCase));
     }
 
+    private static WebApplicationFactory<Program> CreateInMemoryFactory() =>
+        new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IUserGateway>();
+                services.RemoveAll<ISessionGateway>();
+                services.RemoveAll<IPostGateway>();
+                services.AddSingleton<IUserGateway, InMemoryUserGateway>();
+                services.AddSingleton<ISessionGateway, InMemorySessionGateway>();
+                services.AddSingleton<IPostGateway, InMemoryPostGateway>();
+            }));
+
+    private static async Task<AuthResult> CreateAccountAsync(HttpClient client, string handle, string email)
+    {
+        var response = await client.PostAsJsonAsync("/api/accounts", new
+        {
+            displayName = handle.TrimStart('@'),
+            handle,
+            email,
+            password = "Correct9!"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        return (await response.Content.ReadFromJsonAsync<AuthResult>())!;
+    }
+
     private sealed record AuthResult(bool Succeeded, string Message, string? Handle, string? SessionToken);
+    private sealed record CreatePostResult(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);
+    private sealed record SimpleResult(bool Succeeded, string Message);
     private sealed record DevEmailsResult(IReadOnlyList<DevEmailResult> Emails);
     private sealed record DevEmailResult(string To, string Subject, string Body);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);

@@ -23,6 +23,7 @@ public static class SocialAppSliceEndpoints
         endpoints.MapPost("/api/password-reset-requests", RequestPasswordReset);
         endpoints.MapPost("/api/password-resets", ResetPassword);
         endpoints.MapPost("/api/posts", CreatePost);
+        endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
         endpoints.MapGet("/api/posts/recent", RecentPosts);
         return endpoints;
     }
@@ -196,6 +197,37 @@ public static class SocialAppSliceEndpoints
         return presenter.ViewModel is { Succeeded: true, Id: not null } viewModel
             ? Results.Created($"/api/posts/{viewModel.Id}", viewModel)
             : Results.BadRequest(presenter.ViewModel);
+    }
+
+    private static IResult DeletePost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
+    {
+        var token = ReadBearerToken(httpRequest);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = sessions.FindByToken(token);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var presenter = new DeletePostPresenter();
+        var controller = new DeletePostController(new DeletePostInteractor(posts, presenter));
+
+        try
+        {
+            controller.Delete(postId, user.Handle);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(new { succeeded = false, message = ex.Message }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        return presenter.ViewModel is { Succeeded: true }
+            ? Results.Ok(presenter.ViewModel)
+            : Results.NotFound(presenter.ViewModel);
     }
 
     private static IResult RecentPosts(string readerHandle, int? limit, IPostGateway posts)
