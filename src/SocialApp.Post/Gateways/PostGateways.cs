@@ -26,6 +26,13 @@ public sealed class InMemoryPostGateway : IPostGateway
 
     public SocialPost Save(SocialPost post)
     {
+        var existingIndex = _posts.FindIndex(p => p.Id == post.Id);
+        if (existingIndex >= 0)
+        {
+            _posts[existingIndex] = post;
+            return post;
+        }
+
         _posts.Add(post);
         return post;
     }

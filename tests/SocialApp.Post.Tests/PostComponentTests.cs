@@ -52,6 +52,19 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void In_memory_post_gateway_save_updates_existing_post_by_id()
+    {
+        var posts = new InMemoryPostGateway();
+        var post = posts.Save(SocialPost.Create("@ada", "root"));
+        post.DeleteBy("@ada");
+
+        posts.Save(post);
+
+        posts.AllPosts.Should().ContainSingle(p => p.Id == post.Id);
+        posts.FindById(post.Id)!.IsDeleted.Should().BeTrue();
+    }
+
+    [Fact]
     public void Scroll_search_follow_and_block_posts_filter_feed()
     {
         var posts = new InMemoryPostGateway();
