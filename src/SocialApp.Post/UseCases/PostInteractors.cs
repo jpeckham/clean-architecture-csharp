@@ -88,6 +88,7 @@ public sealed class DeletePostInteractor(IPostGateway posts, IDeletePostOutputBo
         var post = posts.FindById(request.PostId);
         if (post is null) { output.Present(new(false, "Post not found.")); return; }
         post.DeleteBy(request.RequesterHandle);
+        posts.Save(post);
         output.Present(new(true, "Post deleted."));
     }
 }

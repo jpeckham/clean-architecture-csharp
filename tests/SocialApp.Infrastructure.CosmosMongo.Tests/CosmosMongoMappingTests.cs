@@ -1,6 +1,10 @@
 using FluentAssertions;
 using SocialApp.Infrastructure.CosmosMongo.Documents;
+using SocialApp.Post.Controllers;
 using SocialApp.Post.Entities;
+using SocialApp.Post.Gateways;
+using SocialApp.Post.Presenters;
+using SocialApp.Post.UseCases;
 using SocialApp.User.Entities;
 using Xunit;
 
@@ -39,5 +43,51 @@ public sealed class CosmosMongoMappingTests
         entity.CreatedAt.Should().Be(post.CreatedAt);
         entity.IsDeleted.Should().BeTrue();
         entity.LikedBy.Should().ContainSingle("@grace");
+    }
+
+    [Fact]
+    public void Delete_post_interactor_persists_deleted_state_through_gateway()
+    {
+        var posts = new DocumentBackedPostGateway();
+        var original = posts.Save(SocialPost.Create("@ada", "delete me"));
+        var presenter = new DeletePostPresenter();
+        var controller = new DeletePostController(new DeletePostInteractor(posts, presenter));
+
+        controller.Delete(original.Id, "@ada");
+
+        presenter.ViewModel!.Succeeded.Should().BeTrue();
+        posts.ScrollFor("@ada", 10).Should().BeEmpty();
+    }
+
+    private sealed class DocumentBackedPostGateway : IPostGateway
+    {
+        private readonly Dictionary<Guid, PostDocument> _posts = new();
+
+        public SocialPost Save(SocialPost post)
+        {
+            _posts[post.Id] = CosmosMongoMappers.ToDocument(post);
+            return post;
+        }
+
+        public SocialPost? FindById(Guid id) =>
+            _posts.TryGetValue(id, out var post)
+                ? CosmosMongoMappers.ToEntity(post)
+                : null;
+
+        public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit) =>
+            _posts.Values
+                .Select(CosmosMongoMappers.ToEntity)
+                .Where(post => !post.IsDeleted)
+                .OrderByDescending(post => post.CreatedAt)
+                .Take(limit)
+                .ToArray();
+
+        public void Follow(string readerHandle, string followedHandle)
+        {
+        }
+
+        public void Block(string readerHandle, string blockedHandle)
+        {
+        }
     }
 }
