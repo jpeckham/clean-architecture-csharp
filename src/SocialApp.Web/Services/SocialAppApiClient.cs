@@ -47,6 +47,20 @@ public sealed class SocialAppApiClient(HttpClient http)
         return await ReadAsync<SimpleResult>(await http.SendAsync(message));
     }
 
+    public async Task<SimpleResult?> LikePostAsync(string sessionToken, Guid postId)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"/api/posts/{postId}/likes");
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<SimpleResult>(await http.SendAsync(message));
+    }
+
+    public async Task<SimpleResult?> DeleteLikeAsync(string sessionToken, Guid postId)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Delete, $"/api/posts/{postId}/likes");
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<SimpleResult>(await http.SendAsync(message));
+    }
+
     public async Task<RecentPostsResult?> GetRecentPostsAsync(string readerHandle, int limit = 20) =>
         await http.GetFromJsonAsync<RecentPostsResult>($"/api/posts/recent?readerHandle={Uri.EscapeDataString(readerHandle)}&limit={limit}");
 
@@ -77,4 +91,4 @@ public sealed record DeviceLoginResult(bool Succeeded, string Message, string? H
 public sealed record CreatePostResult(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);
 public sealed record SimpleResult(bool Succeeded, string Message);
 public sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
-public sealed record PostSummaryResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount);
+public sealed record PostSummaryResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader);

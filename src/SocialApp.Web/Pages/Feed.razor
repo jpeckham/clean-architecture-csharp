@@ -46,6 +46,18 @@
                             }
                         </div>
                         <p>@item.Content</p>
+                        <div class="post-actions">
+                            <button
+                                type="button"
+                                class="heart-button @(item.LikedByCurrentReader ? "liked" : null)"
+                                aria-label="@(item.LikedByCurrentReader ? "Unlike post" : "Like post")"
+                                title="@(item.LikedByCurrentReader ? "Unlike post" : "Like post")"
+                                @onclick="() => ToggleLikeAsync(item)"
+                                disabled="@isBusy">
+                                <span aria-hidden="true">@(item.LikedByCurrentReader ? "\u2665" : "\u2661")</span>
+                            </button>
+                            <span class="like-count">@item.LikeCount</span>
+                        </div>
                     </article>
                 }
             }
@@ -110,6 +122,24 @@
         {
             var result = await Api.DeletePostAsync(Session.SessionToken!, item.Id);
             message = result?.Message ?? "Delete failed.";
+            await LoadPostsAsync();
+        });
+    }
+
+    private async Task ToggleLikeAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var result = item.LikedByCurrentReader
+                ? await Api.DeleteLikeAsync(Session.SessionToken!, item.Id)
+                : await Api.LikePostAsync(Session.SessionToken!, item.Id);
+            message = result?.Message ?? "Like update failed.";
             await LoadPostsAsync();
         });
     }

@@ -8,17 +8,25 @@ namespace SocialApp.Post.UseCases;
 public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBoundary output) : ICreatePostInputBoundary
 {
     public void Handle(CreatePostRequest request) => output.Present(new(true, "Post created.", ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content)))));
-    internal static PostSummaryResponse ToSummary(SocialPost post) => new(post.Id, post.AuthorHandle, post.Content, post.ParentPostId, post.OriginalPostId, post.LikedBy.Count);
+    internal static PostSummaryResponse ToSummary(SocialPost post, string? readerHandle = null) =>
+        new(
+            post.Id,
+            post.AuthorHandle,
+            post.Content,
+            post.ParentPostId,
+            post.OriginalPostId,
+            post.LikedBy.Count,
+            readerHandle is not null && post.LikedBy.Contains(readerHandle));
 }
 
 public sealed class ScrollPostsInteractor(IPostGateway posts, IScrollPostsOutputBoundary output) : IScrollPostsInputBoundary
 {
-    public void Handle(ScrollPostsRequest request) => output.Present(new(posts.ScrollFor(request.ReaderHandle, request.Limit).Select(CreatePostInteractor.ToSummary).ToArray()));
+    public void Handle(ScrollPostsRequest request) => output.Present(new(posts.ScrollFor(request.ReaderHandle, request.Limit).Select(post => CreatePostInteractor.ToSummary(post, request.ReaderHandle)).ToArray()));
 }
 
 public sealed class SearchPostsInteractor(IPostSearchGateway search, ISearchPostsOutputBoundary output) : ISearchPostsInputBoundary
 {
-    public void Handle(SearchPostsRequest request) => output.Present(new(search.Search(request.Query).Select(CreatePostInteractor.ToSummary).ToArray()));
+    public void Handle(SearchPostsRequest request) => output.Present(new(search.Search(request.Query).Select(post => CreatePostInteractor.ToSummary(post)).ToArray()));
 }
 
 public sealed class FollowUserPostsInteractor(IPostGateway posts, IFollowUserPostsOutputBoundary output) : IFollowUserPostsInputBoundary
@@ -46,6 +54,7 @@ public sealed class AddLikeToPostInteractor(IPostGateway posts, IAddLikeToPostOu
         var post = posts.FindById(request.PostId);
         if (post is null) { output.Present(new(false, "Post not found.")); return; }
         post.AddLike(request.Handle);
+        posts.Save(post);
         output.Present(new(true, "Like added."));
     }
 }
@@ -56,7 +65,9 @@ public sealed class DeleteLikeFromPostInteractor(IPostGateway posts, IDeleteLike
     {
         var post = posts.FindById(request.PostId);
         if (post is null) { output.Present(new(false, "Post not found.")); return; }
+        if (!post.LikedBy.Contains(request.Handle)) { throw new InvalidOperationException("Cannot delete a like that does not exist."); }
         post.DeleteLike(request.Handle);
+        posts.Save(post);
         output.Present(new(true, "Like deleted."));
     }
 }

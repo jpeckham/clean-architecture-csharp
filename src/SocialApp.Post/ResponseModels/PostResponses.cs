@@ -1,6 +1,6 @@
 namespace SocialApp.Post.ResponseModels;
 
-public sealed record PostSummaryResponse(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount);
+public sealed record PostSummaryResponse(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader);
 public sealed record CreatePostResponse(bool Succeeded, string Message, PostSummaryResponse? Post);
 public sealed record ScrollPostsResponse(IReadOnlyList<PostSummaryResponse> Posts);
 public sealed record SearchPostsResponse(IReadOnlyList<PostSummaryResponse> Posts);

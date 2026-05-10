@@ -13,6 +13,86 @@ namespace SocialApp.Api.Tests;
 public sealed class SocialAppApiSliceTests
 {
     [Fact]
+    public async Task Authenticated_user_can_like_and_unlike_their_own_like()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Like through API" });
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        var likeResponse = await client.PostAsync($"/api/posts/{created!.Id}/likes", null);
+
+        likeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var graceFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@grace&limit=20");
+        graceFeed!.Posts.Should().ContainSingle(p =>
+            p.Id == created.Id &&
+            p.LikeCount == 1 &&
+            p.LikedByCurrentReader);
+        var adaFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@ada&limit=20");
+        adaFeed!.Posts.Should().ContainSingle(p =>
+            p.Id == created.Id &&
+            p.LikeCount == 1 &&
+            !p.LikedByCurrentReader);
+
+        var unlikeResponse = await client.DeleteAsync($"/api/posts/{created.Id}/likes");
+
+        unlikeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        graceFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@grace&limit=20");
+        graceFeed!.Posts.Should().ContainSingle(p =>
+            p.Id == created.Id &&
+            p.LikeCount == 0 &&
+            !p.LikedByCurrentReader);
+    }
+
+    [Fact]
+    public async Task Like_endpoints_require_valid_bearer_token()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+
+        var missingLikeTokenResponse = await client.PostAsync($"/api/posts/{Guid.NewGuid()}/likes", null);
+        var missingUnlikeTokenResponse = await client.DeleteAsync($"/api/posts/{Guid.NewGuid()}/likes");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", "missing-token");
+        var invalidLikeTokenResponse = await client.PostAsync($"/api/posts/{Guid.NewGuid()}/likes", null);
+        var invalidUnlikeTokenResponse = await client.DeleteAsync($"/api/posts/{Guid.NewGuid()}/likes");
+
+        missingLikeTokenResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        missingUnlikeTokenResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        invalidLikeTokenResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        invalidUnlikeTokenResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task User_cannot_delete_another_users_like()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Grace likes this" });
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        var likeResponse = await client.PostAsync($"/api/posts/{created!.Id}/likes", null);
+        likeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var unlikeResponse = await client.DeleteAsync($"/api/posts/{created.Id}/likes");
+
+        unlikeResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var graceFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@grace&limit=20");
+        graceFeed!.Posts.Should().ContainSingle(p =>
+            p.Id == created.Id &&
+            p.LikeCount == 1 &&
+            p.LikedByCurrentReader);
+    }
+
+    [Fact]
     public async Task Creator_can_delete_post_through_api_and_remove_it_from_recent_posts()
     {
         await using var factory = CreateInMemoryFactory();
@@ -181,5 +261,5 @@ public sealed class SocialAppApiSliceTests
     private sealed record DevEmailsResult(IReadOnlyList<DevEmailResult> Emails);
     private sealed record DevEmailResult(string To, string Subject, string Body);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
-    private sealed record PostSummaryResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount);
+    private sealed record PostSummaryResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader);
 }
