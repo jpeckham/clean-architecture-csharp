@@ -224,6 +224,9 @@ PublishScripts/
 
 # NuGet Packages
 *.nupkg
+
+# Local feature worktrees
+.worktrees/
 # NuGet Symbol Packages
 *.snupkg
 # The packages folder can be ignored because of Package Restore
