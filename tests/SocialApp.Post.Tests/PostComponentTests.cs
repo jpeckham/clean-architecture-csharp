@@ -24,6 +24,20 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void Post_can_be_rehydrated_from_persistence()
+    {
+        var id = Guid.NewGuid();
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-5);
+
+        var post = SocialPost.Rehydrate(id, "@ada", "persisted post", null, null, createdAt, true, new[] { "@grace" });
+
+        post.Id.Should().Be(id);
+        post.CreatedAt.Should().Be(createdAt);
+        post.IsDeleted.Should().BeTrue();
+        post.LikedBy.Should().ContainSingle("@grace");
+    }
+
+    [Fact]
     public void Create_post_flow_runs_controller_interactor_gateway_presenter()
     {
         var posts = new InMemoryPostGateway();

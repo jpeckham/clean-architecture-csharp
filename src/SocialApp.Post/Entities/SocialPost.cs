@@ -4,14 +4,14 @@ public sealed class SocialPost
 {
     private readonly HashSet<string> _likedBy = new(StringComparer.OrdinalIgnoreCase);
 
-    private SocialPost(string authorHandle, string content, Guid? parentPostId, Guid? originalPostId)
+    private SocialPost(Guid id, string authorHandle, string content, Guid? parentPostId, Guid? originalPostId, DateTimeOffset createdAt)
     {
-        Id = Guid.NewGuid();
+        Id = id;
         AuthorHandle = authorHandle;
         Content = content;
         ParentPostId = parentPostId;
         OriginalPostId = originalPostId;
-        CreatedAt = DateTimeOffset.UtcNow;
+        CreatedAt = createdAt;
     }
 
     public Guid Id { get; }
@@ -26,13 +26,13 @@ public sealed class SocialPost
     public static SocialPost Create(string authorHandle, string content)
     {
         Validate(authorHandle, content);
-        return new SocialPost(authorHandle.Trim(), content.Trim(), null, null);
+        return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), content.Trim(), null, null, DateTimeOffset.UtcNow);
     }
 
     public static SocialPost ReplyTo(Guid parentPostId, string authorHandle, string content)
     {
         Validate(authorHandle, content);
-        return new SocialPost(authorHandle.Trim(), content.Trim(), parentPostId, null);
+        return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), content.Trim(), parentPostId, null, DateTimeOffset.UtcNow);
     }
 
     public static SocialPost Repost(Guid originalPostId, string authorHandle)
@@ -42,7 +42,44 @@ public sealed class SocialPost
             throw new ArgumentException("Author handle must start with @.", nameof(authorHandle));
         }
 
-        return new SocialPost(authorHandle.Trim(), string.Empty, null, originalPostId);
+        return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), string.Empty, null, originalPostId, DateTimeOffset.UtcNow);
+    }
+
+    public static SocialPost Rehydrate(
+        Guid id,
+        string authorHandle,
+        string content,
+        Guid? parentPostId,
+        Guid? originalPostId,
+        DateTimeOffset createdAt,
+        bool isDeleted,
+        IEnumerable<string> likedBy)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("Post id is required.", nameof(id));
+        }
+
+        if (originalPostId is null)
+        {
+            Validate(authorHandle, content);
+        }
+        else if (string.IsNullOrWhiteSpace(authorHandle) || !authorHandle.StartsWith('@'))
+        {
+            throw new ArgumentException("Author handle must start with @.", nameof(authorHandle));
+        }
+
+        var post = new SocialPost(id, authorHandle.Trim(), content.Trim(), parentPostId, originalPostId, createdAt)
+        {
+            IsDeleted = isDeleted
+        };
+
+        foreach (var handle in likedBy)
+        {
+            post.AddLike(handle);
+        }
+
+        return post;
     }
 
     public void AddLike(string handle)

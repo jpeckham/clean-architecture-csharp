@@ -1,0 +1,212 @@
+:root {
+    color-scheme: light;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #f6f7f9;
+    color: #1f2933;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+}
+
+button,
+input,
+textarea {
+    font: inherit;
+}
+
+button {
+    min-height: 42px;
+    border: 0;
+    border-radius: 6px;
+    background: #0f6f5c;
+    color: white;
+    font-weight: 600;
+    padding: 0 16px;
+    cursor: pointer;
+}
+
+button.secondary {
+    background: #334155;
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+input,
+textarea {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: white;
+    color: #111827;
+}
+
+textarea {
+    min-height: 116px;
+    resize: vertical;
+}
+
+form {
+    display: grid;
+    gap: 10px;
+}
+
+.shell {
+    min-height: 100vh;
+    padding: 28px;
+}
+
+.workspace {
+    max-width: 1180px;
+    margin: 0 auto;
+}
+
+.masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.masthead h1 {
+    margin: 0;
+    font-size: 34px;
+}
+
+.masthead p {
+    margin: 6px 0 0;
+    color: #64748b;
+}
+
+.auth {
+    display: grid;
+    min-height: calc(100vh - 56px);
+    place-items: center;
+}
+
+.auth-panel {
+    width: min(420px, 100%);
+    background: white;
+    border: 1px solid #d9e2ec;
+    border-radius: 8px;
+    padding: 24px;
+}
+
+.auth-panel h1 {
+    margin: 0;
+    font-size: 30px;
+}
+
+.auth-panel p {
+    color: #64748b;
+    margin: 8px 0 18px;
+}
+
+.switch {
+    font-size: 14px;
+}
+
+.switch a {
+    color: #0f6f5c;
+    font-weight: 600;
+}
+
+.check {
+    align-items: center;
+    color: #334155;
+    display: flex;
+    gap: 8px;
+}
+
+.check input {
+    width: auto;
+}
+
+.feed-layout {
+    display: grid;
+    grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+    gap: 16px;
+}
+
+.panel,
+.feed {
+    background: white;
+    border: 1px solid #d9e2ec;
+    border-radius: 8px;
+    padding: 18px;
+}
+
+.panel h2,
+.feed h2 {
+    margin: 0 0 14px;
+    font-size: 18px;
+}
+
+.feed {
+    display: grid;
+    gap: 12px;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+}
+
+.post {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 12px;
+}
+
+.post p,
+.empty,
+.status,
+.message {
+    margin: 6px 0 0;
+}
+
+.empty,
+.status {
+    color: #64748b;
+}
+
+.message {
+    background: #e0f2fe;
+    border: 1px solid #7dd3fc;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+#blazor-error-ui {
+    background: #fee2e2;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: 12px;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+@media (max-width: 840px) {
+    .shell {
+        padding: 16px;
+    }
+
+    .masthead {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .feed-layout {
+        grid-template-columns: 1fr;
+    }
+}

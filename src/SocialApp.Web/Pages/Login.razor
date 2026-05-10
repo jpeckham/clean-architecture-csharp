@@ -1,0 +1,138 @@
+@page "/"
+@inject SocialApp.Web.Services.SocialAppApiClient Api
+@inject SocialApp.Web.Services.AppSession Session
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+<PageTitle>Log in - SocialApp</PageTitle>
+
+<section class="auth">
+    <div class="auth-panel">
+        <h1>SocialApp</h1>
+        <p>Log in to read recent posts and publish as yourself.</p>
+
+        @if (AccountCreated)
+        {
+            <p class="message">Account created. Log in to continue.</p>
+        }
+
+        @if (!otpRequired)
+        {
+            <EditForm Model="@login" OnValidSubmit="LoginAsync">
+                <InputText @bind-Value="login.Handle" placeholder="handle" />
+                <InputText type="password" @bind-Value="login.Password" placeholder="Password" />
+                <button type="submit" disabled="@isBusy">Log In</button>
+            </EditForm>
+        }
+        else
+        {
+            <EditForm Model="@otp" OnValidSubmit="VerifyOtpAsync">
+                <InputText @bind-Value="otp.Code" placeholder="Email code" />
+                <label class="check"><InputCheckbox @bind-Value="otp.RememberDevice" /> Remember this browser</label>
+                <button type="submit" disabled="@isBusy">Verify Code</button>
+            </EditForm>
+        }
+
+        <p class="switch">Need an account? <a href="/create-account">Create one</a></p>
+        <p class="switch"><a href="/forgot-password">I forgot my password</a></p>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <p class="message">@message</p>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly LoginForm login = new("@ada", "Correct9!");
+    private readonly OtpForm otp = new();
+    private string? message;
+    private bool isBusy;
+    private bool otpRequired;
+    private string? deviceId;
+
+    private bool AccountCreated =>
+        new Uri(Navigation.Uri).Query.Contains("created=1", StringComparison.OrdinalIgnoreCase);
+
+    private async Task LoginAsync()
+    {
+        isBusy = true;
+        message = null;
+        try
+        {
+            deviceId = await GetDeviceIdAsync();
+            var result = await Api.LoginWithDeviceAsync(new(login.Handle, login.Password, deviceId));
+            if (result is { Succeeded: true, OtpRequired: true })
+            {
+                otpRequired = true;
+                message = result.Message;
+                return;
+            }
+
+            if (result is { Succeeded: true, Handle: not null, SessionToken: not null })
+            {
+                Session.SignIn(result.Handle, result.SessionToken);
+                Navigation.NavigateTo("/feed");
+                return;
+            }
+
+            message = result?.Message ?? "Login failed.";
+        }
+        catch (HttpRequestException ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task VerifyOtpAsync()
+    {
+        isBusy = true;
+        message = null;
+        try
+        {
+            deviceId ??= await GetDeviceIdAsync();
+            var result = await Api.VerifyDeviceOtpAsync(new(login.Handle, deviceId, otp.Code, otp.RememberDevice));
+            if (result is { Succeeded: true, Handle: not null, SessionToken: not null })
+            {
+                Session.SignIn(result.Handle, result.SessionToken);
+                Navigation.NavigateTo("/feed");
+                return;
+            }
+
+            message = result?.Message ?? "Code verification failed.";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task<string> GetDeviceIdAsync()
+    {
+        var stored = await Js.InvokeAsync<string?>("localStorage.getItem", "socialapp-device-id");
+        if (!string.IsNullOrWhiteSpace(stored))
+        {
+            return stored;
+        }
+
+        var created = Guid.NewGuid().ToString("N");
+        await Js.InvokeVoidAsync("localStorage.setItem", "socialapp-device-id", created);
+        return created;
+    }
+
+    private sealed class LoginForm(string handle, string password)
+    {
+        public string Handle { get; set; } = handle;
+        public string Password { get; set; } = password;
+    }
+
+    private sealed class OtpForm
+    {
+        public string Code { get; set; } = string.Empty;
+        public bool RememberDevice { get; set; } = true;
+    }
+}

@@ -9,6 +9,10 @@ public sealed class ArchitectureRulesTests
 {
     private static readonly Assembly UserAssembly = typeof(SocialApp.User.Entities.UserAccount).Assembly;
     private static readonly Assembly PostAssembly = typeof(SocialApp.Post.Entities.SocialPost).Assembly;
+    private static readonly Assembly InfrastructureAssembly = typeof(SocialApp.Infrastructure.CosmosMongo.DependencyInjection).Assembly;
+    private static readonly Assembly AcsEmailAssembly = typeof(SocialApp.Infrastructure.AcsEmail.DependencyInjection).Assembly;
+    private static readonly Assembly ApiAssembly = typeof(Program).Assembly;
+    private static readonly Assembly WebAssembly = typeof(SocialApp.Web.App).Assembly;
 
     [Fact]
     public void Components_do_not_reference_each_other()
@@ -20,10 +24,40 @@ public sealed class ArchitectureRulesTests
     [Fact]
     public void Components_do_not_reference_framework_or_database_packages()
     {
-        var forbidden = new[] { "Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "MediatR" };
+        var forbidden = new[] { "Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Microsoft.AspNetCore.Components", "MongoDB.Driver", "Azure.Communication.Email", "MediatR" };
 
         UserAssembly.GetReferencedAssemblies().Select(a => a.Name).Should().NotIntersectWith(forbidden);
         PostAssembly.GetReferencedAssemblies().Select(a => a.Name).Should().NotIntersectWith(forbidden);
+    }
+
+    [Fact]
+    public void Business_components_do_not_reference_outer_details()
+    {
+        var forbidden = new[] { "SocialApp.Api", "SocialApp.Web", "SocialApp.Infrastructure.CosmosMongo", "SocialApp.Infrastructure.AcsEmail" };
+
+        UserAssembly.GetReferencedAssemblies().Select(a => a.Name).Should().NotIntersectWith(forbidden);
+        PostAssembly.GetReferencedAssemblies().Select(a => a.Name).Should().NotIntersectWith(forbidden);
+    }
+
+    [Fact]
+    public void Web_does_not_reference_business_or_infrastructure_projects()
+    {
+        WebAssembly.GetReferencedAssemblies().Select(a => a.Name)
+            .Where(n => n is not null && n.StartsWith("SocialApp."))
+            .Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Infrastructure_references_business_components_but_not_api_or_web()
+    {
+        var references = InfrastructureAssembly.GetReferencedAssemblies().Select(a => a.Name).ToArray();
+
+        references.Should().Contain(new[] { "SocialApp.User", "SocialApp.Post" });
+        references.Should().NotContain(new[] { "SocialApp.Api", "SocialApp.Web" });
+
+        var acsReferences = AcsEmailAssembly.GetReferencedAssemblies().Select(a => a.Name).ToArray();
+        acsReferences.Should().Contain("SocialApp.User");
+        acsReferences.Should().NotContain(new[] { "SocialApp.Api", "SocialApp.Web", "SocialApp.Post" });
     }
 
     [Fact]

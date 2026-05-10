@@ -20,6 +20,30 @@ This repository demonstrates Clean Architecture with component-first packaging. 
 
 No component references another component.
 No component references application hosts or infrastructure frameworks.
+
+Outer projects:
+
+```text
+SocialApp.Web
+  -> HTTP calls to SocialApp.Api
+
+SocialApp.Api
+  -> SocialApp.User
+  -> SocialApp.Post
+  -> SocialApp.Infrastructure.CosmosMongo
+  -> SocialApp.Infrastructure.AcsEmail
+
+SocialApp.Infrastructure.CosmosMongo
+  -> SocialApp.User
+  -> SocialApp.Post
+  -> MongoDB.Driver
+
+SocialApp.Infrastructure.AcsEmail
+  -> SocialApp.User
+  -> Azure.Communication.Email
+```
+
+The arrows point inward toward business policy. The web frontend, API framework, MongoDB driver, ACS Email SDK, cloud connection details, and Terraform files are details outside the use cases.
 ```
 
 ## Request Flow
@@ -36,6 +60,33 @@ External caller in test
           -> Presenter
             -> View Model
 ```
+
+Hosted vertical slice:
+
+```text
+Blazor WebAssembly
+  -> HTTP endpoint in SocialApp.Api
+    -> Component controller
+      -> Component interactor
+        -> Component gateway interface
+          -> Cosmos Mongo gateway implementation
+        -> Component presenter
+          -> View model returned as JSON
+```
+
+Registration and recovery use the same dependency rule:
+
+```text
+Blazor WebAssembly
+  -> SocialApp.Api endpoint
+    -> User component controller/interactor
+      -> component-owned gateway interface
+        -> Cosmos Mongo token/device adapter
+        -> ACS Email adapter
+      -> presenter/view model
+```
+
+The `SocialApp.User` component owns the rules for pending registration, verification codes, remembered devices, and five-minute one-time password reset links. It does not know how emails are sent or where tokens are stored.
 
 Example: account creation
 
@@ -65,7 +116,7 @@ Controllers   Presenters
        Entities
 ```
 
-Gateway implementations are in the owning component because this repository is architecture-focused and uses in-memory infrastructure only for tests and demonstrations. There is no separate infrastructure project.
+In-memory gateway implementations remain in the owning component because they are simple test/demo adapters. Production persistence is an outer infrastructure project, `SocialApp.Infrastructure.CosmosMongo`, which implements component-owned gateway interfaces without changing the dependency direction. Production email is another outer infrastructure project, `SocialApp.Infrastructure.AcsEmail`, implementing `IEmailGateway`.
 
 ## Component Principles
 
@@ -120,3 +171,4 @@ Technical roles exist, but only inside the component that owns the behavior. The
 - presenter/output-boundary pairing
 - controller/input-boundary pairing
 - acyclic component references
+- isolation from API, web, and infrastructure details

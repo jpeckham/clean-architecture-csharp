@@ -8,14 +8,20 @@ The top-level architecture screams the business capabilities:
 src/
   SocialApp.User/
   SocialApp.Post/
+  SocialApp.Infrastructure.CosmosMongo/
+  SocialApp.Infrastructure.AcsEmail/
+  SocialApp.Api/
+  SocialApp.Web/
 
 tests/
   SocialApp.User.Tests/
   SocialApp.Post.Tests/
+  SocialApp.Infrastructure.CosmosMongo.Tests/
+  SocialApp.Api.Tests/
   SocialApp.Architecture.Tests/
 ```
 
-There is no application host. Executable behavior is demonstrated through tests.
+The original business components remain host-free. The added host projects are outer details: the API and Blazor WebAssembly SPA depend inward, while the business components do not depend on ASP.NET, Blazor, MongoDB, Cosmos DB, or Terraform.
 
 ## Component-First Architecture
 
@@ -43,10 +49,14 @@ Shared projects often become dumping grounds, hide coupling, and weaken componen
 - `SocialApp.User` does not reference `SocialApp.Post`.
 - `SocialApp.Post` does not reference `SocialApp.User`.
 - Components do not reference ASP.NET, Entity Framework, MediatR, ORMs, or DI frameworks.
+- Components do not reference the API, web frontend, or infrastructure projects.
 - Entities do not depend on controllers, presenters, gateways, or interactors.
 - Interactors depend on abstractions and entities, not frameworks.
 - Controllers translate input and invoke input boundaries.
 - Presenters implement output boundaries and build view models.
+- `SocialApp.Web` calls the API over HTTP and does not reference business components directly.
+- `SocialApp.Infrastructure.CosmosMongo` implements component-owned gateway interfaces using the MongoDB driver for Cosmos DB.
+- `SocialApp.Infrastructure.AcsEmail` implements component-owned email delivery using Azure Communication Services Email.
 
 These rules are enforced in `SocialApp.Architecture.Tests`.
 
@@ -76,3 +86,61 @@ dotnet test SocialApp.sln
 ```
 
 The architecture test project is not a unit test suite. Its job is to mechanically prevent architectural decay.
+
+## Running The Vertical Slice
+
+Start the API:
+
+```powershell
+dotnet run --project src/SocialApp.Api/SocialApp.Api.csproj --launch-profile https
+```
+
+Start the Blazor WebAssembly SPA:
+
+```powershell
+dotnet run --project src/SocialApp.Web/SocialApp.Web.csproj --launch-profile https
+```
+
+The SPA reads `ApiBaseAddress` from `src/SocialApp.Web/wwwroot/appsettings.json`. By default it points at the API HTTPS launch profile.
+
+Without `CosmosMongo:ConnectionString`, the API uses in-memory gateways for local development. Set `CosmosMongo__ConnectionString` and `CosmosMongo__DatabaseName` to use Cosmos DB for MongoDB API.
+
+Without `AcsEmail:ConnectionString`, the API uses an in-memory email gateway. Set these values to send real out-of-band emails through Azure Communication Services:
+
+```powershell
+$env:AcsEmail__ConnectionString="<acs-connection-string>"
+$env:AcsEmail__SenderAddress="donotreply@<verified-domain>"
+$env:Web__PasswordResetBaseUrl="https://localhost:7278/reset-password"
+```
+
+## Auth Flow
+
+The hosted slice uses out-of-band email flows:
+
+- account creation stores a pending registration and sends an email verification code
+- registration verification creates the user account
+- login sends an email OTP when the browser/device is not remembered
+- remembered devices can skip email OTP on later logins
+- forgot password sends a one-time reset link that expires after 5 minutes
+- reset tokens are consumed once and cannot be reused
+
+## Azure Infrastructure
+
+Terraform lives in `infra/terraform` and provisions:
+
+- Azure Static Web Apps for `SocialApp.Web`
+- Azure Container Apps for `SocialApp.Api`
+- Azure Cosmos DB for MongoDB API
+- Azure Communication Services Email
+- Log Analytics for container logs
+
+```powershell
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform plan -var "api_container_image=<registry>/socialapp-api:<tag>"
+```
+
+Build the API container from the repository root with:
+
+```powershell
+docker build -f src/SocialApp.Api/Dockerfile -t socialapp-api:local .
+```

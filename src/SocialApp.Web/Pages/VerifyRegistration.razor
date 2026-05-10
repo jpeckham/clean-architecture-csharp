@@ -1,0 +1,57 @@
+@page "/verify-registration"
+@inject SocialApp.Web.Services.SocialAppApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Verify account - SocialApp</PageTitle>
+
+<section class="auth">
+    <div class="auth-panel">
+        <h1>Verify Email</h1>
+        <p>Enter the code sent to @Email.</p>
+
+        <EditForm Model="@form" OnValidSubmit="VerifyAsync">
+            <InputText @bind-Value="form.Code" placeholder="Verification code" />
+            <button type="submit" disabled="@isBusy">Verify</button>
+        </EditForm>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <p class="message">@message</p>
+        }
+    </div>
+</section>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string Email { get; set; } = string.Empty;
+
+    private readonly VerifyForm form = new();
+    private string? message;
+    private bool isBusy;
+
+    private async Task VerifyAsync()
+    {
+        isBusy = true;
+        message = null;
+        try
+        {
+            var result = await Api.VerifyRegistrationAsync(new(Email, form.Code));
+            if (result?.Succeeded == true)
+            {
+                Navigation.NavigateTo("/?created=1");
+                return;
+            }
+
+            message = result?.Message ?? "Verification failed.";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private sealed class VerifyForm
+    {
+        public string Code { get; set; } = string.Empty;
+    }
+}

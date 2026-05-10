@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SocialApp.User\SocialApp.User.csproj" />
+    <ProjectReference Include="..\SocialApp.Post\SocialApp.Post.csproj" />
+    <ProjectReference Include="..\SocialApp.Infrastructure.CosmosMongo\SocialApp.Infrastructure.CosmosMongo.csproj" />
+    <ProjectReference Include="..\SocialApp.Infrastructure.AcsEmail\SocialApp.Infrastructure.AcsEmail.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

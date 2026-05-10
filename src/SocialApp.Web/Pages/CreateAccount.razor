@@ -1,0 +1,66 @@
+@page "/create-account"
+@inject SocialApp.Web.Services.SocialAppApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Create account - SocialApp</PageTitle>
+
+<section class="auth">
+    <div class="auth-panel">
+        <h1>Create Account</h1>
+        <p>Use your account to post only as yourself.</p>
+
+        <EditForm Model="@account" OnValidSubmit="CreateAccountAsync">
+            <InputText @bind-Value="account.DisplayName" placeholder="Display name" />
+            <InputText @bind-Value="account.Handle" placeholder="handle" />
+            <InputText @bind-Value="account.Email" placeholder="email@example.com" />
+            <InputText type="password" @bind-Value="account.Password" placeholder="Password" />
+            <button type="submit" disabled="@isBusy">Create Account</button>
+        </EditForm>
+
+        <p class="switch">Already have an account? <a href="/">Log in</a></p>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <p class="message">@message</p>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly AccountForm account = new("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+    private string? message;
+    private bool isBusy;
+
+    private async Task CreateAccountAsync()
+    {
+        isBusy = true;
+        message = null;
+        try
+        {
+            var result = await Api.RegisterAccountAsync(new(account.DisplayName, account.Handle, account.Email, account.Password));
+            if (result?.Succeeded == true)
+            {
+                Navigation.NavigateTo($"/verify-registration?email={Uri.EscapeDataString(account.Email)}");
+                return;
+            }
+
+            message = result?.Message ?? "Account creation failed.";
+        }
+        catch (HttpRequestException ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private sealed class AccountForm(string displayName, string handle, string email, string password)
+    {
+        public string DisplayName { get; set; } = displayName;
+        public string Handle { get; set; } = handle;
+        public string Email { get; set; } = email;
+        public string Password { get; set; } = password;
+    }
+}

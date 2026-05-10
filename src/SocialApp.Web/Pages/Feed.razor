@@ -1,0 +1,128 @@
+@page "/feed"
+@inject SocialApp.Web.Services.SocialAppApiClient Api
+@inject SocialApp.Web.Services.AppSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Feed - SocialApp</PageTitle>
+
+<section class="workspace">
+    <header class="masthead">
+        <div>
+            <h1>Recent Posts</h1>
+            <p>Signed in as @Session.Handle</p>
+        </div>
+        <div class="actions">
+            <button type="button" class="secondary" @onclick="LoadPostsAsync" disabled="@isBusy">Refresh</button>
+            <button type="button" class="secondary" @onclick="SignOut">Log Out</button>
+        </div>
+    </header>
+
+    <div class="feed-layout">
+        <section class="panel composer">
+            <h2>Create Post</h2>
+            <EditForm Model="@post" OnValidSubmit="CreatePostAsync">
+                <InputTextArea @bind-Value="post.Content" placeholder="What changed?" />
+                <button type="submit" disabled="@isBusy">Post as @Session.Handle</button>
+            </EditForm>
+        </section>
+
+        <section class="feed">
+            <h2>Recent</h2>
+            @if (posts.Count == 0)
+            {
+                <p class="empty">No posts yet.</p>
+            }
+            else
+            {
+                @foreach (var item in posts)
+                {
+                    <article class="post">
+                        <strong>@item.AuthorHandle</strong>
+                        <p>@item.Content</p>
+                    </article>
+                }
+            }
+        </section>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <p class="message">@message</p>
+    }
+</section>
+
+@code {
+    private readonly PostForm post = new();
+    private readonly List<SocialApp.Web.Services.PostSummaryResult> posts = new();
+    private string? message;
+    private bool isBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        await LoadPostsAsync();
+    }
+
+    private async Task CreatePostAsync()
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var result = await Api.CreatePostAsync(Session.SessionToken!, new(post.Content));
+            message = result?.Message ?? "Post failed.";
+            post.Content = string.Empty;
+            await LoadPostsAsync();
+        });
+    }
+
+    private async Task LoadPostsAsync()
+    {
+        if (!Session.IsLoggedIn)
+        {
+            return;
+        }
+
+        var result = await Api.GetRecentPostsAsync(Session.Handle!);
+        posts.Clear();
+        posts.AddRange(result?.Posts ?? Array.Empty<SocialApp.Web.Services.PostSummaryResult>());
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        isBusy = true;
+        message = null;
+        try
+        {
+            await action();
+        }
+        catch (HttpRequestException ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void SignOut()
+    {
+        Session.SignOut();
+        Navigation.NavigateTo("/");
+    }
+
+    private sealed class PostForm
+    {
+        public string Content { get; set; } = string.Empty;
+    }
+}

@@ -427,3 +427,10 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Terraform local working directories
+**/.terraform/
+
+# Local Codex run logs
+.codex-logs/
+infra/terraform/.terraform.lock.hcl
