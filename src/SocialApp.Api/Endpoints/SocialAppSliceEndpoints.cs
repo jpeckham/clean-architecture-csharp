@@ -24,6 +24,8 @@ public static class SocialAppSliceEndpoints
         endpoints.MapPost("/api/password-resets", ResetPassword);
         endpoints.MapPost("/api/posts", CreatePost);
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
+        endpoints.MapPost("/api/posts/{postId:guid}/likes", AddLikeToPost);
+        endpoints.MapDelete("/api/posts/{postId:guid}/likes", DeleteLikeFromPost);
         endpoints.MapGet("/api/posts/recent", RecentPosts);
         return endpoints;
     }
@@ -223,6 +225,68 @@ public static class SocialAppSliceEndpoints
         catch (InvalidOperationException ex)
         {
             return Results.Json(new { succeeded = false, message = ex.Message }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        return presenter.ViewModel is { Succeeded: true }
+            ? Results.Ok(presenter.ViewModel)
+            : Results.NotFound(presenter.ViewModel);
+    }
+
+    private static IResult AddLikeToPost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
+    {
+        var token = ReadBearerToken(httpRequest);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = sessions.FindByToken(token);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var presenter = new AddLikeToPostPresenter();
+        var controller = new AddLikeToPostController(new AddLikeToPostInteractor(posts, presenter));
+
+        try
+        {
+            controller.AddLike(postId, user.Handle);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
+        }
+
+        return presenter.ViewModel is { Succeeded: true }
+            ? Results.Ok(presenter.ViewModel)
+            : Results.NotFound(presenter.ViewModel);
+    }
+
+    private static IResult DeleteLikeFromPost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
+    {
+        var token = ReadBearerToken(httpRequest);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = sessions.FindByToken(token);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var presenter = new DeleteLikeFromPostPresenter();
+        var controller = new DeleteLikeFromPostController(new DeleteLikeFromPostInteractor(posts, presenter));
+
+        try
+        {
+            controller.DeleteLike(postId, user.Handle);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
         }
 
         return presenter.ViewModel is { Succeeded: true }

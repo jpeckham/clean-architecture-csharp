@@ -189,6 +189,45 @@ form {
     margin: 6px 0 0;
 }
 
+.post-actions {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.heart-button {
+    align-items: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #64748b;
+    display: inline-flex;
+    font-size: 22px;
+    font-weight: 600;
+    justify-content: center;
+    line-height: 1;
+    min-height: 32px;
+    padding: 0;
+    width: 32px;
+}
+
+.heart-button:hover:not(:disabled),
+.heart-button.liked {
+    color: #b42318;
+}
+
+.heart-button:focus-visible {
+    border-color: #0f6f5c;
+    outline: 2px solid #99f6e4;
+}
+
+.like-count {
+    color: #475569;
+    font-weight: 600;
+    min-width: 1ch;
+}
+
 .empty,
 .status {
     color: #64748b;

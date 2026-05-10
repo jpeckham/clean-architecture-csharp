@@ -1,6 +1,6 @@
 namespace SocialApp.Post.ViewModels;
 
-public sealed record PostSummaryViewModel(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount);
+public sealed record PostSummaryViewModel(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader);
 public sealed record CreatePostViewModel(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);
 public sealed record ScrollPostsViewModel(IReadOnlyList<PostSummaryViewModel> Posts);
 public sealed record SearchPostsViewModel(IReadOnlyList<PostSummaryViewModel> Posts);
