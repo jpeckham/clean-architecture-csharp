@@ -31,8 +31,8 @@ public sealed class RegisterAccountInteractor(
             return;
         }
 
-        UserAccount.Create(request.DisplayName, request.Handle, request.Email, request.Password);
-        registrations.Save(new PendingRegistration(request.DisplayName.Trim(), request.Handle.Trim(), request.Email.Trim(), request.Password));
+        var pendingAccount = UserAccount.Create(request.DisplayName, request.Handle, request.Email, request.Password);
+        registrations.Save(new PendingRegistration(request.DisplayName.Trim(), request.Handle.Trim(), request.Email.Trim(), pendingAccount.PasswordHash));
         var code = codes.CreateCode(request.Email, "registration", TimeSpan.FromMinutes(15));
         email.Send(request.Email, "Verify your SocialApp account", $"Your SocialApp verification code is {code}.");
         output.Present(new RegisterAccountResponse(true, UserMessageKeys.VerificationCodeSent));
@@ -54,7 +54,7 @@ public sealed class VerifyRegistrationInteractor(
             return;
         }
 
-        users.Save(UserAccount.Create(registration.DisplayName, registration.Handle, registration.Email, registration.Password));
+        users.Save(UserAccount.CreateWithPasswordHash(registration.DisplayName, registration.Handle, registration.Email, registration.PasswordHash));
         registrations.Remove(request.Email);
         output.Present(new VerifyRegistrationResponse(true, UserMessageKeys.AccountVerified));
     }

@@ -26,6 +26,8 @@ public static class SocialAppSliceEndpoints
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
         endpoints.MapPost("/api/posts/{postId:guid}/likes", AddLikeToPost);
         endpoints.MapDelete("/api/posts/{postId:guid}/likes", DeleteLikeFromPost);
+        endpoints.MapPost("/api/posts/{postId:guid}/reposts", RepostPost);
+        endpoints.MapDelete("/api/posts/{postId:guid}/reposts/mine", DeleteMyRepost);
         endpoints.MapGet("/api/posts/recent", RecentPosts);
         return endpoints;
     }
@@ -292,6 +294,80 @@ public static class SocialAppSliceEndpoints
         return presenter.ViewModel is { Succeeded: true }
             ? Results.Ok(presenter.ViewModel)
             : Results.NotFound(presenter.ViewModel);
+    }
+
+    private static IResult RepostPost(RepostPostHttpRequest request, Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
+    {
+        var token = ReadBearerToken(httpRequest);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = sessions.FindByToken(token);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var presenter = new RepostPresenter();
+        var controller = new RepostController(new RepostInteractor(posts, presenter));
+
+        try
+        {
+            controller.Repost(postId, user.Handle, request.Content ?? string.Empty);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Conflict(new { succeeded = false, message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
+        }
+
+        return presenter.ViewModel is { Succeeded: true, Id: not null } viewModel
+            ? Results.Created($"/api/posts/{viewModel.Id}", viewModel)
+            : Results.NotFound(presenter.ViewModel);
+    }
+
+    private static IResult DeleteMyRepost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
+    {
+        var token = ReadBearerToken(httpRequest);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = sessions.FindByToken(token);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var requestedPost = posts.FindById(postId);
+        if (requestedPost is null)
+        {
+            var notFoundPresenter = new DeletePostPresenter();
+            notFoundPresenter.Present(new(false, SocialApp.Post.ResponseModels.PostMessageKeys.OriginalPostNotFound));
+            return Results.NotFound(notFoundPresenter.ViewModel);
+        }
+
+        var targetPostId = requestedPost.OriginalPostId ?? requestedPost.Id;
+        var repost = posts.FindActiveRepost(targetPostId, user.Handle);
+        if (repost is null)
+        {
+            var notFoundPresenter = new DeletePostPresenter();
+            notFoundPresenter.Present(new(false, SocialApp.Post.ResponseModels.PostMessageKeys.RepostNotFound));
+            return Results.NotFound(notFoundPresenter.ViewModel);
+        }
+
+        repost.DeleteBy(user.Handle);
+        posts.Save(repost);
+
+        var presenter = new DeletePostPresenter();
+        presenter.Present(new(true, SocialApp.Post.ResponseModels.PostMessageKeys.RepostDeleted));
+        return Results.Ok(presenter.ViewModel);
     }
 
     private static IResult RecentPosts(string readerHandle, int? limit, IPostGateway posts)

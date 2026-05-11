@@ -11,11 +11,11 @@ public static class CosmosMongoMappers
         DisplayName = user.DisplayName,
         Handle = user.Handle,
         Email = user.Email,
-        Password = user.PasswordHash
+        PasswordHash = user.PasswordHash
     };
 
     public static UserAccount ToEntity(UserDocument document) =>
-        UserAccount.Rehydrate(document.Id, document.DisplayName, document.Handle, document.Email, document.Password);
+        UserAccount.Rehydrate(document.Id, document.DisplayName, document.Handle, document.Email, document.PasswordHash);
 
     public static PostDocument ToDocument(SocialPost post) => new()
     {

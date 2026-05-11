@@ -18,6 +18,9 @@ public sealed class UserComponentTests
 
         account.Handle.Should().Be("@ada");
         account.CheckPassword("Correct9!").Should().BeTrue();
+        account.CheckPassword("Wrong999!").Should().BeFalse();
+        account.PasswordHash.Should().NotBe("Correct9!");
+        account.PasswordHash.Should().StartWith("PBKDF2$");
         Action weakPassword = () => UserAccount.Create("Ada", "@ada2", "ada2@example.com", "weak");
         weakPassword.Should().Throw<ArgumentException>().WithMessage("*Password*");
     }
@@ -31,6 +34,44 @@ public sealed class UserComponentTests
         account.Id.Should().Be(id);
         account.Handle.Should().Be("@ada");
         account.CheckPassword("Correct9!").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Password_hash_can_be_rehydrated_without_rehashing()
+    {
+        var created = UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        var storedHash = created.PasswordHash;
+
+        var account = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", storedHash);
+
+        account.PasswordHash.Should().Be(storedHash);
+        account.CheckPassword("Correct9!").Should().BeTrue();
+        account.CheckPassword("Wrong999!").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Change_password_stores_new_non_reversible_hash()
+    {
+        var account = UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        var originalHash = account.PasswordHash;
+
+        account.ChangePassword("Changed9!");
+
+        account.PasswordHash.Should().NotBe("Changed9!");
+        account.PasswordHash.Should().StartWith("PBKDF2$");
+        account.PasswordHash.Should().NotBe(originalHash);
+        account.CheckPassword("Correct9!").Should().BeFalse();
+        account.CheckPassword("Changed9!").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Legacy_plaintext_passwords_can_still_verify_during_migration()
+    {
+        var account = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+
+        account.PasswordHash.Should().Be("Correct9!");
+        account.CheckPassword("Correct9!").Should().BeTrue();
+        account.CheckPassword("Wrong999!").Should().BeFalse();
     }
 
     [Fact]
@@ -63,6 +104,8 @@ public sealed class UserComponentTests
         controller.Register("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
 
         presenter.ViewModel!.Succeeded.Should().BeTrue();
+        registrations.FindByEmail("ada@example.com")!.PasswordHash.Should().NotBe("Correct9!");
+        registrations.FindByEmail("ada@example.com")!.PasswordHash.Should().StartWith("PBKDF2$");
         users.FindByHandle("@ada").Should().BeNull();
         email.Sent.Should().ContainSingle(m => m.To == "ada@example.com" && m.Subject.Contains("Verify", StringComparison.OrdinalIgnoreCase));
 

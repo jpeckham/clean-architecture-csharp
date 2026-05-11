@@ -14,13 +14,33 @@ public sealed class ScrollPostsPresenter : IScrollPostsOutputBoundary
 {
     public ScrollPostsViewModel? ViewModel { get; private set; }
     public void Present(ScrollPostsResponse response) => ViewModel = new(response.Posts.Select(ToViewModel).ToArray());
-    private static PostSummaryViewModel ToViewModel(PostSummaryResponse p) => new(p.Id, p.AuthorHandle, p.Content, p.ParentPostId, p.OriginalPostId, p.LikeCount, p.LikedByCurrentReader);
+    private static PostSummaryViewModel ToViewModel(PostSummaryResponse p) => new(
+        p.Id,
+        p.AuthorHandle,
+        p.Content,
+        p.ParentPostId,
+        p.OriginalPostId,
+        p.LikeCount,
+        p.LikedByCurrentReader,
+        p.RepostCount,
+        p.RepostedByCurrentReader,
+        p.QuotedPost is null ? null : new(p.QuotedPost.Id, p.QuotedPost.AuthorHandle, p.QuotedPost.Content));
 }
 
 public sealed class SearchPostsPresenter : ISearchPostsOutputBoundary
 {
     public SearchPostsViewModel? ViewModel { get; private set; }
-    public void Present(SearchPostsResponse response) => ViewModel = new(response.Posts.Select(p => new PostSummaryViewModel(p.Id, p.AuthorHandle, p.Content, p.ParentPostId, p.OriginalPostId, p.LikeCount, p.LikedByCurrentReader)).ToArray());
+    public void Present(SearchPostsResponse response) => ViewModel = new(response.Posts.Select(p => new PostSummaryViewModel(
+        p.Id,
+        p.AuthorHandle,
+        p.Content,
+        p.ParentPostId,
+        p.OriginalPostId,
+        p.LikeCount,
+        p.LikedByCurrentReader,
+        p.RepostCount,
+        p.RepostedByCurrentReader,
+        p.QuotedPost is null ? null : new(p.QuotedPost.Id, p.QuotedPost.AuthorHandle, p.QuotedPost.Content))).ToArray());
 }
 
 public sealed class FollowUserPostsPresenter : IFollowUserPostsOutputBoundary
@@ -79,6 +99,10 @@ internal static class PostMessages
         [PostMessageKeys.ReplyCreated] = "Reply created.",
         [PostMessageKeys.OriginalPostNotFound] = "Original post not found.",
         [PostMessageKeys.RepostCreated] = "Repost created.",
+        [PostMessageKeys.SelfRepostRejected] = "Users cannot repost their own posts.",
+        [PostMessageKeys.DuplicateRepostRejected] = "Users can repost a post only once.",
+        [PostMessageKeys.RepostDeleted] = "Repost deleted.",
+        [PostMessageKeys.RepostNotFound] = "Repost not found.",
         [PostMessageKeys.PostDeleted] = "Post deleted."
     };
 

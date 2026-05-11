@@ -35,14 +35,19 @@ public sealed class SocialPost
         return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), content.Trim(), parentPostId, null, DateTimeOffset.UtcNow);
     }
 
-    public static SocialPost Repost(Guid originalPostId, string authorHandle)
+    public static SocialPost Repost(Guid originalPostId, string authorHandle, string content = "")
     {
         if (string.IsNullOrWhiteSpace(authorHandle) || !authorHandle.StartsWith('@'))
         {
             throw new ArgumentException("Author handle must start with @.", nameof(authorHandle));
         }
 
-        return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), string.Empty, null, originalPostId, DateTimeOffset.UtcNow);
+        if (content.Length > 280)
+        {
+            throw new ArgumentException("Post content must be 280 characters or fewer.", nameof(content));
+        }
+
+        return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), content.Trim(), null, originalPostId, DateTimeOffset.UtcNow);
     }
 
     public static SocialPost Rehydrate(
@@ -67,6 +72,10 @@ public sealed class SocialPost
         else if (string.IsNullOrWhiteSpace(authorHandle) || !authorHandle.StartsWith('@'))
         {
             throw new ArgumentException("Author handle must start with @.", nameof(authorHandle));
+        }
+        else if (content.Length > 280)
+        {
+            throw new ArgumentException("Post content must be 280 characters or fewer.", nameof(content));
         }
 
         var post = new SocialPost(id, authorHandle.Trim(), content.Trim(), parentPostId, originalPostId, createdAt)

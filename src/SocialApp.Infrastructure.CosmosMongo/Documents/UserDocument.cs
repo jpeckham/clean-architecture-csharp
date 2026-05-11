@@ -12,5 +12,6 @@ public sealed class UserDocument
     public string DisplayName { get; init; } = string.Empty;
     public string Handle { get; init; } = string.Empty;
     public string Email { get; init; } = string.Empty;
-    public string Password { get; init; } = string.Empty;
+    [BsonElement("Password")]
+    public string PasswordHash { get; init; } = string.Empty;
 }

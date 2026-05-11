@@ -9,7 +9,8 @@ public sealed class PendingRegistrationDocument
 
     public string DisplayName { get; init; } = string.Empty;
     public string Handle { get; init; } = string.Empty;
-    public string Password { get; init; } = string.Empty;
+    [BsonElement("Password")]
+    public string PasswordHash { get; init; } = string.Empty;
 }
 
 public sealed class VerificationCodeDocument

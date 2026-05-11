@@ -10,5 +10,5 @@ public sealed class BlockUserPostsController(IBlockUserPostsInputBoundary input)
 public sealed class AddLikeToPostController(IAddLikeToPostInputBoundary input) { public void AddLike(Guid postId, string handle) => input.Handle(new(postId, handle)); }
 public sealed class DeleteLikeFromPostController(IDeleteLikeFromPostInputBoundary input) { public void DeleteLike(Guid postId, string handle) => input.Handle(new(postId, handle)); }
 public sealed class ReplyToPostController(IReplyToPostInputBoundary input) { public void Reply(Guid parentPostId, string authorHandle, string content) => input.Handle(new(parentPostId, authorHandle, content)); }
-public sealed class RepostController(IRepostInputBoundary input) { public void Repost(Guid originalPostId, string authorHandle) => input.Handle(new(originalPostId, authorHandle)); }
+public sealed class RepostController(IRepostInputBoundary input) { public void Repost(Guid originalPostId, string authorHandle, string content = "") => input.Handle(new(originalPostId, authorHandle, content)); }
 public sealed class DeletePostController(IDeletePostInputBoundary input) { public void Delete(Guid postId, string requesterHandle) => input.Handle(new(postId, requesterHandle)); }

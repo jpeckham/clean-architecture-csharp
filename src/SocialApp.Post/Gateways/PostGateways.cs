@@ -6,6 +6,8 @@ public interface IPostGateway
 {
     SocialPost Save(SocialPost post);
     SocialPost? FindById(Guid id);
+    SocialPost? FindActiveRepost(Guid originalPostId, string authorHandle);
+    int CountActiveReposts(Guid originalPostId);
     IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit);
     void Follow(string readerHandle, string followedHandle);
     void Block(string readerHandle, string blockedHandle);
@@ -38,6 +40,15 @@ public sealed class InMemoryPostGateway : IPostGateway
     }
 
     public SocialPost? FindById(Guid id) => _posts.SingleOrDefault(p => p.Id == id);
+
+    public SocialPost? FindActiveRepost(Guid originalPostId, string authorHandle) =>
+        _posts.SingleOrDefault(p =>
+            !p.IsDeleted &&
+            p.OriginalPostId == originalPostId &&
+            string.Equals(p.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase));
+
+    public int CountActiveReposts(Guid originalPostId) =>
+        _posts.Count(p => !p.IsDeleted && p.OriginalPostId == originalPostId);
 
     public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit)
     {

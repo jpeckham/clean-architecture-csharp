@@ -45,7 +45,17 @@
                                 <button type="button" class="danger compact" @onclick="() => DeletePostAsync(item)" disabled="@isBusy">Delete</button>
                             }
                         </div>
-                        <p>@item.Content</p>
+                        @if (item.QuotedPost is not null)
+                        {
+                            <div class="quoted-post">
+                                <strong>@item.QuotedPost.AuthorHandle</strong>
+                                <p>@item.QuotedPost.Content</p>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(item.Content))
+                        {
+                            <p>@item.Content</p>
+                        }
                         <div class="post-actions">
                             <button
                                 type="button"
@@ -57,7 +67,30 @@
                                 <span aria-hidden="true">@(item.LikedByCurrentReader ? "\u2665" : "\u2661")</span>
                             </button>
                             <span class="like-count">@item.LikeCount</span>
+                            <button
+                                type="button"
+                                class="repost-button @(item.RepostedByCurrentReader ? "reposted" : null)"
+                                aria-label="@(item.RepostedByCurrentReader ? "Delete your repost" : "Repost")"
+                                title="@(item.RepostedByCurrentReader ? "Delete your repost" : "Repost")"
+                                @onclick="() => ToggleRepostComposerAsync(item)"
+                                disabled="@(isBusy || IsOwnRepostTarget(item))">
+                                <span aria-hidden="true">@("\u27f3")</span>
+                            </button>
+                            <span class="repost-count">@item.RepostCount</span>
                         </div>
+                        @if (activeRepostPostId == item.Id && !item.RepostedByCurrentReader)
+                        {
+                            <div class="repost-composer">
+                                <InputTextArea @bind-Value="repostContent" placeholder="Add a note..." />
+                                <div class="repost-composer-actions">
+                                    <button type="button" class="compact" @onclick="() => RepostAsync(item)" disabled="@isBusy">
+                                        <span aria-hidden="true">@("\u27f3")</span>
+                                        Repost
+                                    </button>
+                                    <button type="button" class="secondary compact" @onclick="CancelRepost" disabled="@isBusy">Cancel</button>
+                                </div>
+                            </div>
+                        }
                     </article>
                 }
             }
@@ -74,6 +107,8 @@
     private readonly PostForm post = new();
     private readonly List<SocialApp.Web.Services.PostSummaryResult> posts = new();
     private string? message;
+    private Guid? activeRepostPostId;
+    private string repostContent = string.Empty;
     private bool isBusy;
 
     protected override async Task OnInitializedAsync()
@@ -144,6 +179,59 @@
         });
     }
 
+    private async Task ToggleRepostComposerAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        if (item.RepostedByCurrentReader)
+        {
+            var confirmed = await Js.InvokeAsync<bool>("confirm", "Delete your repost of this post?");
+            if (!confirmed)
+            {
+                return;
+            }
+
+            await RunAsync(async () =>
+            {
+                var result = await Api.DeleteMyRepostAsync(Session.SessionToken!, item.Id);
+                message = result?.Message ?? "Delete repost failed.";
+                await LoadPostsAsync();
+            });
+            return;
+        }
+
+        activeRepostPostId = activeRepostPostId == item.Id ? null : item.Id;
+        repostContent = string.Empty;
+    }
+
+    private async Task RepostAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var result = await Api.RepostAsync(Session.SessionToken!, item.Id, new(repostContent));
+            message = result?.Message ?? "Repost failed.";
+            activeRepostPostId = null;
+            repostContent = string.Empty;
+            await LoadPostsAsync();
+        });
+    }
+
+    private void CancelRepost()
+    {
+        activeRepostPostId = null;
+        repostContent = string.Empty;
+    }
+
     private async Task LoadPostsAsync()
     {
         if (!Session.IsLoggedIn)
@@ -176,6 +264,12 @@
 
     private bool CanDelete(SocialApp.Web.Services.PostSummaryResult item) =>
         string.Equals(item.AuthorHandle, Session.Handle, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsOwnRepostTarget(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        var targetAuthor = item.QuotedPost?.AuthorHandle ?? item.AuthorHandle;
+        return string.Equals(targetAuthor, Session.Handle, StringComparison.OrdinalIgnoreCase);
+    }
 
     private void SignOut()
     {

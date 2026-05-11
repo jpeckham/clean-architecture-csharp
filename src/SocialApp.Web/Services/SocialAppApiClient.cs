@@ -47,6 +47,23 @@ public sealed class SocialAppApiClient(HttpClient http)
         return await ReadAsync<SimpleResult>(await http.SendAsync(message));
     }
 
+    public async Task<CreatePostResult?> RepostAsync(string sessionToken, Guid postId, RepostPostRequest request)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"/api/posts/{postId}/reposts")
+        {
+            Content = JsonContent.Create(request)
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<CreatePostResult>(await http.SendAsync(message));
+    }
+
+    public async Task<SimpleResult?> DeleteMyRepostAsync(string sessionToken, Guid postId)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Delete, $"/api/posts/{postId}/reposts/mine");
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<SimpleResult>(await http.SendAsync(message));
+    }
+
     public async Task<SimpleResult?> LikePostAsync(string sessionToken, Guid postId)
     {
         using var message = new HttpRequestMessage(HttpMethod.Post, $"/api/posts/{postId}/likes");
@@ -86,9 +103,21 @@ public sealed record VerifyDeviceOtpRequest(string Handle, string DeviceId, stri
 public sealed record RequestPasswordResetRequest(string Email);
 public sealed record ResetPasswordRequest(string Token, string NewPassword);
 public sealed record CreatePostRequest(string Content);
+public sealed record RepostPostRequest(string Content);
 public sealed record AuthResult(bool Succeeded, string Message, string? Handle, string? SessionToken);
 public sealed record DeviceLoginResult(bool Succeeded, string Message, string? Handle, string? SessionToken, bool OtpRequired);
 public sealed record CreatePostResult(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);
 public sealed record SimpleResult(bool Succeeded, string Message);
 public sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
-public sealed record PostSummaryResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader);
+public sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
+public sealed record PostSummaryResult(
+    Guid Id,
+    string AuthorHandle,
+    string Content,
+    Guid? ParentPostId,
+    Guid? OriginalPostId,
+    int LikeCount,
+    bool LikedByCurrentReader,
+    int RepostCount,
+    bool RepostedByCurrentReader,
+    QuotedPostSummaryResult? QuotedPost);

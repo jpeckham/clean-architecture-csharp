@@ -49,6 +49,64 @@ public sealed class SocialAppApiSliceTests
     }
 
     [Fact]
+    public async Task Authenticated_user_can_create_and_delete_quote_repost_through_api()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        var linus = await CreateAccountAsync(client, "@linus", "linus@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Original API post" });
+        var original = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+        var originalId = original!.Id!.Value;
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        var repostResponse = await client.PostAsJsonAsync($"/api/posts/{originalId}/reposts", new { content = "Grace quote" });
+
+        repostResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var repost = await repostResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+        var repostId = repost!.Id!.Value;
+        repostId.Should().NotBe(originalId);
+
+        var graceFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@grace&limit=20");
+        var originalView = graceFeed!.Posts.Single(p => p.Id == originalId);
+        originalView.RepostCount.Should().Be(1);
+        originalView.RepostedByCurrentReader.Should().BeTrue();
+
+        var repostView = graceFeed.Posts.Single(p => p.Id == repostId);
+        repostView.Content.Should().Be("Grace quote");
+        repostView.OriginalPostId.Should().Be(originalId);
+        repostView.QuotedPost.Should().NotBeNull();
+        repostView.QuotedPost!.AuthorHandle.Should().Be("@ada");
+        repostView.QuotedPost.Content.Should().Be("Original API post");
+
+        var duplicateRepostResponse = await client.PostAsJsonAsync($"/api/posts/{originalId}/reposts", new { content = "Grace duplicate" });
+        duplicateRepostResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", linus.SessionToken);
+        var repostOfRepostResponse = await client.PostAsJsonAsync($"/api/posts/{repostId}/reposts", new { content = "Linus quote" });
+        repostOfRepostResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var repostOfRepost = await repostOfRepostResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+        var linusFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@linus&limit=20");
+        linusFeed!.Posts.Single(p => p.Id == repostOfRepost!.Id).OriginalPostId.Should().Be(originalId);
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        var deleteRepostResponse = await client.DeleteAsync($"/api/posts/{originalId}/reposts/mine");
+
+        deleteRepostResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        graceFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@grace&limit=20");
+        graceFeed!.Posts.Should().NotContain(p => p.Id == repostId);
+        graceFeed.Posts.Single(p => p.Id == originalId).RepostedByCurrentReader.Should().BeFalse();
+        graceFeed.Posts.Single(p => p.Id == originalId).RepostCount.Should().Be(1);
+
+        var secondRepostResponse = await client.PostAsJsonAsync($"/api/posts/{originalId}/reposts", new { content = "Grace again" });
+        secondRepostResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var secondGraceRepost = await secondRepostResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+        secondGraceRepost!.Id.Should().NotBe(repostId);
+    }
+
+    [Fact]
     public async Task Like_endpoints_require_valid_bearer_token()
     {
         await using var factory = CreateInMemoryFactory();
@@ -261,5 +319,16 @@ public sealed class SocialAppApiSliceTests
     private sealed record DevEmailsResult(IReadOnlyList<DevEmailResult> Emails);
     private sealed record DevEmailResult(string To, string Subject, string Body);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
-    private sealed record PostSummaryResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader);
+    private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
+    private sealed record PostSummaryResult(
+        Guid Id,
+        string AuthorHandle,
+        string Content,
+        Guid? ParentPostId,
+        Guid? OriginalPostId,
+        int LikeCount,
+        bool LikedByCurrentReader,
+        int RepostCount,
+        bool RepostedByCurrentReader,
+        QuotedPostSummaryResult? QuotedPost);
 }

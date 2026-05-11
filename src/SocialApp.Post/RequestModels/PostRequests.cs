@@ -8,5 +8,5 @@ public sealed record BlockUserPostsRequest(string ReaderHandle, string BlockedHa
 public sealed record AddLikeToPostRequest(Guid PostId, string Handle);
 public sealed record DeleteLikeFromPostRequest(Guid PostId, string Handle);
 public sealed record ReplyToPostRequest(Guid ParentPostId, string AuthorHandle, string Content);
-public sealed record RepostRequest(Guid OriginalPostId, string AuthorHandle);
+public sealed record RepostRequest(Guid OriginalPostId, string AuthorHandle, string Content);
 public sealed record DeletePostRequest(Guid PostId, string RequesterHandle);

@@ -189,6 +189,21 @@ form {
     margin: 6px 0 0;
 }
 
+.quoted-post {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    margin-top: 10px;
+    padding: 10px 12px;
+}
+
+.quoted-post strong {
+    color: #334155;
+}
+
+.quoted-post p {
+    color: #475569;
+}
+
 .post-actions {
     align-items: center;
     display: flex;
@@ -217,15 +232,60 @@ form {
     color: #b42318;
 }
 
-.heart-button:focus-visible {
+.repost-button {
+    align-items: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #64748b;
+    display: inline-flex;
+    font-size: 20px;
+    font-weight: 700;
+    justify-content: center;
+    line-height: 1;
+    min-height: 32px;
+    padding: 0;
+    width: 32px;
+}
+
+.repost-button:hover:not(:disabled),
+.repost-button.reposted {
+    color: #0f6f5c;
+}
+
+.heart-button:focus-visible,
+.repost-button:focus-visible {
     border-color: #0f6f5c;
     outline: 2px solid #99f6e4;
 }
 
-.like-count {
+.like-count,
+.repost-count {
     color: #475569;
     font-weight: 600;
     min-width: 1ch;
+}
+
+.repost-composer {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.repost-composer textarea {
+    min-height: 76px;
+}
+
+.repost-composer-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.repost-composer-actions button {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
 }
 
 .empty,

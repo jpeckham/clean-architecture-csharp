@@ -44,6 +44,8 @@ public sealed class CosmosMongoMappingTests
         var document = CosmosMongoMappers.ToDocument(user);
         var entity = CosmosMongoMappers.ToEntity(document);
 
+        document.PasswordHash.Should().NotBe("Correct9!");
+        document.PasswordHash.Should().StartWith("PBKDF2$");
         entity.Id.Should().Be(user.Id);
         entity.DisplayName.Should().Be("Ada Lovelace");
         entity.Handle.Should().Be("@ada");
@@ -97,6 +99,19 @@ public sealed class CosmosMongoMappingTests
             _posts.TryGetValue(id, out var post)
                 ? CosmosMongoMappers.ToEntity(post)
                 : null;
+
+        public SocialPost? FindActiveRepost(Guid originalPostId, string authorHandle) =>
+            _posts.Values
+                .Select(CosmosMongoMappers.ToEntity)
+                .SingleOrDefault(post =>
+                    !post.IsDeleted &&
+                    post.OriginalPostId == originalPostId &&
+                    string.Equals(post.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase));
+
+        public int CountActiveReposts(Guid originalPostId) =>
+            _posts.Values
+                .Select(CosmosMongoMappers.ToEntity)
+                .Count(post => !post.IsDeleted && post.OriginalPostId == originalPostId);
 
         public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit) =>
             _posts.Values

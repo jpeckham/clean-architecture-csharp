@@ -153,6 +153,88 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void Repost_rejects_self_repost_and_duplicate_active_repost()
+    {
+        var posts = new InMemoryPostGateway();
+        var original = posts.Save(SocialPost.Create("@ada", "root"));
+        var controller = new RepostController(new RepostInteractor(posts, new RepostPresenter()));
+
+        Action selfRepost = () => controller.Repost(original.Id, "@ada", "quote");
+        selfRepost.Should().Throw<InvalidOperationException>().WithMessage("Users cannot repost their own posts.");
+
+        controller.Repost(original.Id, "@grace", "first quote");
+        Action duplicate = () => controller.Repost(original.Id, "@grace", "second quote");
+        duplicate.Should().Throw<InvalidOperationException>().WithMessage("Users can repost a post only once.");
+    }
+
+    [Fact]
+    public void Reposting_a_repost_targets_the_quoted_original_post()
+    {
+        var posts = new InMemoryPostGateway();
+        var original = posts.Save(SocialPost.Create("@ada", "root"));
+        var firstPresenter = new RepostPresenter();
+        var firstController = new RepostController(new RepostInteractor(posts, firstPresenter));
+        firstController.Repost(original.Id, "@grace", "first quote");
+
+        var secondPresenter = new RepostPresenter();
+        new RepostController(new RepostInteractor(posts, secondPresenter))
+            .Repost(firstPresenter.ViewModel!.Id!.Value, "@linus", "second quote");
+
+        secondPresenter.ViewModel!.OriginalPostId.Should().Be(original.Id);
+        posts.FindById(secondPresenter.ViewModel.Id!.Value)!.OriginalPostId.Should().Be(original.Id);
+    }
+
+    [Fact]
+    public void User_can_repost_original_again_after_deleting_their_active_repost()
+    {
+        var posts = new InMemoryPostGateway();
+        var original = posts.Save(SocialPost.Create("@ada", "root"));
+        var firstPresenter = new RepostPresenter();
+        var repostController = new RepostController(new RepostInteractor(posts, firstPresenter));
+        repostController.Repost(original.Id, "@grace", "first quote");
+        var firstRepostId = firstPresenter.ViewModel!.Id!.Value;
+
+        new DeletePostController(new DeletePostInteractor(posts, new DeletePostPresenter()))
+            .Delete(firstRepostId, "@grace");
+
+        var secondPresenter = new RepostPresenter();
+        new RepostController(new RepostInteractor(posts, secondPresenter))
+            .Repost(original.Id, "@grace", "second quote");
+
+        secondPresenter.ViewModel!.Succeeded.Should().BeTrue();
+        secondPresenter.ViewModel.OriginalPostId.Should().Be(original.Id);
+        secondPresenter.ViewModel.Id.Should().NotBe(firstRepostId);
+        posts.CountActiveReposts(original.Id).Should().Be(1);
+    }
+
+    [Fact]
+    public void Feed_projection_includes_repost_state_counts_and_quoted_original()
+    {
+        var posts = new InMemoryPostGateway();
+        var original = posts.Save(SocialPost.Create("@ada", "root"));
+        new RepostController(new RepostInteractor(posts, new RepostPresenter()))
+            .Repost(original.Id, "@grace", "Grace take");
+        new RepostController(new RepostInteractor(posts, new RepostPresenter()))
+            .Repost(original.Id, "@linus", string.Empty);
+
+        var presenter = new ScrollPostsPresenter();
+        new ScrollPostsController(new ScrollPostsInteractor(posts, presenter)).Scroll("@grace", 10);
+
+        var originalView = presenter.ViewModel!.Posts.Single(p => p.Id == original.Id);
+        originalView.RepostCount.Should().Be(2);
+        originalView.RepostedByCurrentReader.Should().BeTrue();
+
+        var repostView = presenter.ViewModel.Posts.Single(p => p.AuthorHandle == "@grace");
+        repostView.Content.Should().Be("Grace take");
+        repostView.OriginalPostId.Should().Be(original.Id);
+        repostView.QuotedPost.Should().NotBeNull();
+        repostView.QuotedPost!.AuthorHandle.Should().Be("@ada");
+        repostView.QuotedPost.Content.Should().Be("root");
+        repostView.RepostCount.Should().Be(2);
+        repostView.RepostedByCurrentReader.Should().BeTrue();
+    }
+
+    [Fact]
     public void Delete_like_rejects_handles_that_have_not_liked_the_post()
     {
         var posts = new InMemoryPostGateway();
@@ -200,6 +282,12 @@ public sealed class PostComponentTests
 
         public void Block(string readerHandle, string blockedHandle) =>
             inner.Block(readerHandle, blockedHandle);
+
+        public SocialPost? FindActiveRepost(Guid originalPostId, string authorHandle) =>
+            inner.FindActiveRepost(originalPostId, authorHandle);
+
+        public int CountActiveReposts(Guid originalPostId) =>
+            inner.CountActiveReposts(originalPostId);
 
         public void ResetSaveCount() => SaveCount = 0;
     }

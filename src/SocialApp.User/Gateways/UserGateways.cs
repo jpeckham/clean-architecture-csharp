@@ -61,7 +61,7 @@ public interface IPasswordResetTokenGateway
     string? FindActiveToken(string email);
 }
 
-public sealed record PendingRegistration(string DisplayName, string Handle, string Email, string Password);
+public sealed record PendingRegistration(string DisplayName, string Handle, string Email, string PasswordHash);
 public sealed record SentEmail(string To, string Subject, string Body);
 public sealed record PasswordResetToken(string Email, DateTimeOffset ExpiresAt);
 

@@ -9,6 +9,16 @@ public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBo
 {
     public void Handle(CreatePostRequest request) => output.Present(new(true, PostMessageKeys.PostCreated, ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content)))));
     public static PostSummaryResponse ToSummary(SocialPost post, string? readerHandle = null) =>
+        ToSummary(post, null, readerHandle);
+
+    public static PostSummaryResponse ToSummary(SocialPost post, IPostGateway? posts, string? readerHandle = null)
+    {
+        var originalPost = post.OriginalPostId is { } originalPostId && posts is not null
+            ? posts.FindById(originalPostId)
+            : null;
+        var repostTargetId = post.OriginalPostId ?? post.Id;
+
+        return
         new(
             post.Id,
             post.AuthorHandle,
@@ -16,12 +26,16 @@ public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBo
             post.ParentPostId,
             post.OriginalPostId,
             post.LikedBy.Count,
-            readerHandle is not null && post.LikedBy.Contains(readerHandle));
+            readerHandle is not null && post.LikedBy.Contains(readerHandle),
+            posts?.CountActiveReposts(repostTargetId) ?? 0,
+            readerHandle is not null && posts?.FindActiveRepost(repostTargetId, readerHandle) is not null,
+            originalPost is null ? null : new(originalPost.Id, originalPost.AuthorHandle, originalPost.Content));
+    }
 }
 
 public sealed class ScrollPostsInteractor(IPostGateway posts, IScrollPostsOutputBoundary output) : IScrollPostsInputBoundary
 {
-    public void Handle(ScrollPostsRequest request) => output.Present(new(posts.ScrollFor(request.ReaderHandle, request.Limit).Select(post => CreatePostInteractor.ToSummary(post, request.ReaderHandle)).ToArray()));
+    public void Handle(ScrollPostsRequest request) => output.Present(new(posts.ScrollFor(request.ReaderHandle, request.Limit).Select(post => CreatePostInteractor.ToSummary(post, posts, request.ReaderHandle)).ToArray()));
 }
 
 public sealed class SearchPostsInteractor(IPostSearchGateway search, ISearchPostsOutputBoundary output) : ISearchPostsInputBoundary
@@ -86,9 +100,27 @@ public sealed class RepostInteractor(IPostGateway posts, IRepostOutputBoundary o
 {
     public void Handle(RepostRequest request)
     {
-        if (posts.FindById(request.OriginalPostId) is null) { output.Present(new(false, PostMessageKeys.OriginalPostNotFound, null)); return; }
-        var repost = posts.Save(SocialPost.Repost(request.OriginalPostId, request.AuthorHandle));
-        output.Present(new(true, PostMessageKeys.RepostCreated, CreatePostInteractor.ToSummary(repost)));
+        var requestedPost = posts.FindById(request.OriginalPostId);
+        if (requestedPost is null) { output.Present(new(false, PostMessageKeys.OriginalPostNotFound, null)); return; }
+
+        var targetPost = requestedPost.OriginalPostId is { } rootOriginalPostId
+            ? posts.FindById(rootOriginalPostId)
+            : requestedPost;
+
+        if (targetPost is null) { output.Present(new(false, PostMessageKeys.OriginalPostNotFound, null)); return; }
+
+        if (string.Equals(targetPost.AuthorHandle, request.AuthorHandle, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Users cannot repost their own posts.");
+        }
+
+        if (posts.FindActiveRepost(targetPost.Id, request.AuthorHandle) is not null)
+        {
+            throw new InvalidOperationException("Users can repost a post only once.");
+        }
+
+        var repost = posts.Save(SocialPost.Repost(targetPost.Id, request.AuthorHandle, request.Content));
+        output.Present(new(true, PostMessageKeys.RepostCreated, CreatePostInteractor.ToSummary(repost, posts, request.AuthorHandle)));
     }
 }
 

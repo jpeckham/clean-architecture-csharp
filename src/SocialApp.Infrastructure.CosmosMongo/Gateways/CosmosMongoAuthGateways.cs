@@ -16,13 +16,13 @@ public sealed class CosmosMongoPendingRegistrationGateway(CosmosMongoCollections
                 Email = registration.Email,
                 DisplayName = registration.DisplayName,
                 Handle = registration.Handle,
-                Password = registration.Password
+                PasswordHash = registration.PasswordHash
             },
             new ReplaceOptions { IsUpsert = true });
 
     public PendingRegistration? FindByEmail(string email) =>
         _registrations.Find(r => r.Email == email).FirstOrDefault() is { } document
-            ? new PendingRegistration(document.DisplayName, document.Handle, document.Email, document.Password)
+            ? new PendingRegistration(document.DisplayName, document.Handle, document.Email, document.PasswordHash)
             : null;
 
     public void Remove(string email) => _registrations.DeleteOne(r => r.Email == email);
