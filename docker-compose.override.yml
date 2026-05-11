@@ -1,0 +1,21 @@
+services:
+  socialapp.api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      CosmosMongo__ConnectionString: mongodb://mongo:27017
+      CosmosMongo__DatabaseName: socialapp
+      Web__PasswordResetBaseUrl: http://localhost:8081/reset-password
+    ports:
+      - "8080:8080"
+
+  socialapp.web:
+    environment:
+      API_BASE_ADDRESS: http://localhost:8080
+    ports:
+      - "8081:80"
+
+  mongo:
+    ports:
+      - "27017:27017"
+

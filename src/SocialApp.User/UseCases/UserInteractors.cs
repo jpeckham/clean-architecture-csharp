@@ -64,10 +64,10 @@ public sealed class LoginInteractor(IUserGateway users, ISessionGateway sessions
 {
     public void Handle(LoginRequest request)
     {
-        var user = users.FindByHandle(request.Handle);
+        var user = users.FindByEmail(request.Email);
         if (user is null || !user.CheckPassword(request.Password))
         {
-            output.Present(new LoginResponse(false, "Invalid handle or password.", null, null));
+            output.Present(new LoginResponse(false, "Invalid email or password.", null, null));
             return;
         }
 
@@ -85,10 +85,10 @@ public sealed class LoginWithDeviceInteractor(
 {
     public void Handle(LoginWithDeviceRequest request)
     {
-        var user = users.FindByHandle(request.Handle);
+        var user = users.FindByEmail(request.Email);
         if (user is null || !user.CheckPassword(request.Password))
         {
-            output.Present(new LoginWithDeviceResponse(false, "Invalid handle or password.", null, null, false));
+            output.Present(new LoginWithDeviceResponse(false, "Invalid email or password.", null, null, false));
             return;
         }
 

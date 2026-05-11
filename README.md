@@ -89,7 +89,29 @@ The architecture test project is not a unit test suite. Its job is to mechanical
 
 ## Running The Vertical Slice
 
-Start the API:
+The default local workflow is the Visual Studio Docker Compose project. Set `docker-compose` as the startup project in Visual Studio and run it. Visual Studio builds and starts:
+
+- `socialapp.api` on `http://localhost:8080`
+- `socialapp.web` on `http://localhost:8081`
+- `mongo` on `localhost:27017`
+
+The MongoDB container stores data in the named Docker volume `socialapp-mongo-data`, so local test data survives container restarts.
+
+You can run the same setup from the command line:
+
+```powershell
+docker compose up --build
+```
+
+To reset the persisted local MongoDB data:
+
+```powershell
+docker compose down -v
+```
+
+The API container receives `CosmosMongo__ConnectionString=mongodb://mongo:27017` and `CosmosMongo__DatabaseName=socialapp`, so it uses `SocialApp.Infrastructure.CosmosMongo` by default in Docker.
+
+For a lightweight non-Docker run, start the API:
 
 ```powershell
 dotnet run --project src/SocialApp.Api/SocialApp.Api.csproj --launch-profile https
@@ -103,7 +125,7 @@ dotnet run --project src/SocialApp.Web/SocialApp.Web.csproj --launch-profile htt
 
 The SPA reads `ApiBaseAddress` from `src/SocialApp.Web/wwwroot/appsettings.json`. By default it points at the API HTTPS launch profile.
 
-Without `CosmosMongo:ConnectionString`, the API uses in-memory gateways for local development. Set `CosmosMongo__ConnectionString` and `CosmosMongo__DatabaseName` to use Cosmos DB for MongoDB API.
+Without `CosmosMongo:ConnectionString`, the API still uses in-memory gateways. Set `CosmosMongo__ConnectionString` and `CosmosMongo__DatabaseName` manually only when you are not using the Docker Compose project.
 
 Without `AcsEmail:ConnectionString`, the API uses an in-memory email gateway. Set these values to send real out-of-band emails through Azure Communication Services:
 

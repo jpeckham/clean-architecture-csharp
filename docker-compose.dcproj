@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.Docker.Sdk">
+  <PropertyGroup Label="Globals">
+    <ProjectVersion>2.1</ProjectVersion>
+    <DockerTargetOS>Linux</DockerTargetOS>
+    <ProjectGuid>{9F3B942E-9AF8-4F15-BB94-9CF2957EE57F}</ProjectGuid>
+    <DockerLaunchAction>LaunchBrowser</DockerLaunchAction>
+    <DockerServiceName>socialapp.web</DockerServiceName>
+    <DockerServiceUrl>http://localhost:8081</DockerServiceUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="docker-compose.yml" />
+    <None Include="docker-compose.override.yml">
+      <DependentUpon>docker-compose.yml</DependentUpon>
+    </None>
+    <None Include=".dockerignore" />
+  </ItemGroup>
+</Project>
+

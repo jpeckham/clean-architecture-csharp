@@ -20,12 +20,12 @@ public sealed class VerifyRegistrationController(IVerifyRegistrationInputBoundar
 
 public sealed class LoginController(ILoginInputBoundary input)
 {
-    public void Login(string handle, string password) => input.Handle(new(handle, password));
+    public void Login(string email, string password) => input.Handle(new(email, password));
 }
 
 public sealed class LoginWithDeviceController(ILoginWithDeviceInputBoundary input)
 {
-    public void Login(string handle, string password, string deviceId) => input.Handle(new(handle, password, deviceId));
+    public void Login(string email, string password, string deviceId) => input.Handle(new(email, password, deviceId));
 }
 
 public sealed class VerifyDeviceOtpController(IVerifyDeviceOtpInputBoundary input)

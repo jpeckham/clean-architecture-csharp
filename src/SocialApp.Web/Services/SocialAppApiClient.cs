@@ -80,8 +80,8 @@ public sealed class SocialAppApiClient(HttpClient http)
 public sealed record CreateAccountRequest(string DisplayName, string Handle, string Email, string Password);
 public sealed record RegisterAccountRequest(string DisplayName, string Handle, string Email, string Password);
 public sealed record VerifyRegistrationRequest(string Email, string Code);
-public sealed record LoginRequest(string Handle, string Password);
-public sealed record LoginWithDeviceRequest(string Handle, string Password, string DeviceId);
+public sealed record LoginRequest(string Email, string Password);
+public sealed record LoginWithDeviceRequest(string Email, string Password, string DeviceId);
 public sealed record VerifyDeviceOtpRequest(string Handle, string DeviceId, string Code, bool RememberDevice);
 public sealed record RequestPasswordResetRequest(string Email);
 public sealed record ResetPasswordRequest(string Token, string NewPassword);

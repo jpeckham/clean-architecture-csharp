@@ -1,6 +1,9 @@
-**/bin/
-**/obj/
-.git/
-.vs/
+**/.dockerignore
+**/.git
+**/.vs
+**/bin
+**/obj
+**/TestResults
+**/node_modules
 infra/
 tests/

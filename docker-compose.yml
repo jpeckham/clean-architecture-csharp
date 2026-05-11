@@ -1,0 +1,31 @@
+services:
+  socialapp.api:
+    image: ${DOCKER_REGISTRY-}socialappapi
+    build:
+      context: .
+      dockerfile: src/SocialApp.Api/Dockerfile
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  socialapp.web:
+    image: ${DOCKER_REGISTRY-}socialappweb
+    build:
+      context: .
+      dockerfile: src/SocialApp.Web/Dockerfile
+    depends_on:
+      - socialapp.api
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - socialapp-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  socialapp-mongo-data:
+

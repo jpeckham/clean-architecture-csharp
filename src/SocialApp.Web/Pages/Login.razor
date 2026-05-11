@@ -19,7 +19,7 @@
         @if (!otpRequired)
         {
             <EditForm Model="@login" OnValidSubmit="LoginAsync">
-                <InputText @bind-Value="login.Handle" placeholder="handle" />
+                <InputText @bind-Value="login.Email" placeholder="email@example.com" />
                 <InputText type="password" @bind-Value="login.Password" placeholder="Password" />
                 <button type="submit" disabled="@isBusy">Log In</button>
             </EditForm>
@@ -44,12 +44,13 @@
 </section>
 
 @code {
-    private readonly LoginForm login = new("@ada", "Correct9!");
+    private readonly LoginForm login = new();
     private readonly OtpForm otp = new();
     private string? message;
     private bool isBusy;
     private bool otpRequired;
     private string? deviceId;
+    private string? pendingHandle;
 
     private bool AccountCreated =>
         new Uri(Navigation.Uri).Query.Contains("created=1", StringComparison.OrdinalIgnoreCase);
@@ -61,10 +62,11 @@
         try
         {
             deviceId = await GetDeviceIdAsync();
-            var result = await Api.LoginWithDeviceAsync(new(login.Handle, login.Password, deviceId));
+            var result = await Api.LoginWithDeviceAsync(new(login.Email, login.Password, deviceId));
             if (result is { Succeeded: true, OtpRequired: true })
             {
                 otpRequired = true;
+                pendingHandle = result.Handle;
                 message = result.Message;
                 return;
             }
@@ -95,7 +97,7 @@
         try
         {
             deviceId ??= await GetDeviceIdAsync();
-            var result = await Api.VerifyDeviceOtpAsync(new(login.Handle, deviceId, otp.Code, otp.RememberDevice));
+            var result = await Api.VerifyDeviceOtpAsync(new(pendingHandle ?? string.Empty, deviceId, otp.Code, otp.RememberDevice));
             if (result is { Succeeded: true, Handle: not null, SessionToken: not null })
             {
                 Session.SignIn(result.Handle, result.SessionToken);
@@ -124,10 +126,10 @@
         return created;
     }
 
-    private sealed class LoginForm(string handle, string password)
+    private sealed class LoginForm
     {
-        public string Handle { get; set; } = handle;
-        public string Password { get; set; } = password;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 
     private sealed class OtpForm

@@ -27,7 +27,7 @@
 </section>
 
 @code {
-    private readonly AccountForm account = new("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+    private readonly AccountForm account = new();
     private string? message;
     private bool isBusy;
 
@@ -56,11 +56,11 @@
         }
     }
 
-    private sealed class AccountForm(string displayName, string handle, string email, string password)
+    private sealed class AccountForm
     {
-        public string DisplayName { get; set; } = displayName;
-        public string Handle { get; set; } = handle;
-        public string Email { get; set; } = email;
-        public string Password { get; set; } = password;
+        public string DisplayName { get; set; } = string.Empty;
+        public string Handle { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 }

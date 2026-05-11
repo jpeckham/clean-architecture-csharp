@@ -1,3 +1,4 @@
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace SocialApp.Infrastructure.CosmosMongo.Documents;
@@ -5,6 +6,7 @@ namespace SocialApp.Infrastructure.CosmosMongo.Documents;
 public sealed class UserDocument
 {
     [BsonId]
+    [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public Guid Id { get; init; }
 
     public string DisplayName { get; init; } = string.Empty;

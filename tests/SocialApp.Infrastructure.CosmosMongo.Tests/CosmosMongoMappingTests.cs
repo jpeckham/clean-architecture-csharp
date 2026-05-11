@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MongoDB.Bson;
 using SocialApp.Infrastructure.CosmosMongo.Documents;
 using SocialApp.Post.Controllers;
 using SocialApp.Post.Entities;
@@ -12,6 +13,29 @@ namespace SocialApp.Infrastructure.CosmosMongo.Tests;
 
 public sealed class CosmosMongoMappingTests
 {
+    [Fact]
+    public void Documents_with_guid_fields_can_be_serialized_by_mongo_driver()
+    {
+        var user = CosmosMongoMappers.ToDocument(UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
+        var post = CosmosMongoMappers.ToDocument(SocialPost.Create("@ada", "Hello from Cosmos"));
+        var session = new SessionDocument
+        {
+            Token = "token",
+            UserId = user.Id,
+            Handle = user.Handle,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        Action serialize = () =>
+        {
+            _ = user.ToBson();
+            _ = post.ToBson();
+            _ = session.ToBson();
+        };
+
+        serialize.Should().NotThrow();
+    }
+
     [Fact]
     public void User_documents_round_trip_to_entities()
     {

@@ -95,7 +95,7 @@ public static class SocialAppSliceEndpoints
     {
         var presenter = new LoginPresenter();
         var controller = new LoginController(new LoginInteractor(users, sessions, presenter));
-        controller.Login(request.Handle, request.Password);
+        controller.Login(request.Email, request.Password);
 
         return presenter.ViewModel is { Succeeded: true }
             ? Results.Ok(presenter.ViewModel)
@@ -112,7 +112,7 @@ public static class SocialAppSliceEndpoints
     {
         var presenter = new LoginWithDevicePresenter();
         new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, codes, email, presenter))
-            .Login(request.Handle, request.Password, request.DeviceId);
+            .Login(request.Email, request.Password, request.DeviceId);
 
         return presenter.ViewModel is { Succeeded: true }
             ? Results.Ok(presenter.ViewModel)

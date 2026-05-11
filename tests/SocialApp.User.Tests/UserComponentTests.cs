@@ -85,7 +85,7 @@ public sealed class UserComponentTests
 
         var loginPresenter = new LoginWithDevicePresenter();
         new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, otps, email, loginPresenter))
-            .Login("@ada", "Correct9!", "browser-1");
+            .Login("ada@example.com", "Correct9!", "browser-1");
 
         loginPresenter.ViewModel!.OtpRequired.Should().BeTrue();
         loginPresenter.ViewModel.SessionToken.Should().BeNull();
@@ -99,10 +99,33 @@ public sealed class UserComponentTests
 
         var rememberedLoginPresenter = new LoginWithDevicePresenter();
         new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, otps, email, rememberedLoginPresenter))
-            .Login("@ada", "Correct9!", "browser-1");
+            .Login("ada@example.com", "Correct9!", "browser-1");
 
         rememberedLoginPresenter.ViewModel!.OtpRequired.Should().BeFalse();
         rememberedLoginPresenter.ViewModel.SessionToken.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void Login_uses_email_address_instead_of_public_handle()
+    {
+        var users = new InMemoryUserGateway();
+        users.Save(UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
+        var sessions = new InMemorySessionGateway();
+
+        var emailPresenter = new LoginPresenter();
+        new LoginController(new LoginInteractor(users, sessions, emailPresenter))
+            .Login("ada@example.com", "Correct9!");
+
+        emailPresenter.ViewModel!.Succeeded.Should().BeTrue();
+        emailPresenter.ViewModel.Handle.Should().Be("@ada");
+        emailPresenter.ViewModel.SessionToken.Should().NotBeNullOrWhiteSpace();
+
+        var handlePresenter = new LoginPresenter();
+        new LoginController(new LoginInteractor(users, sessions, handlePresenter))
+            .Login("@ada", "Correct9!");
+
+        handlePresenter.ViewModel!.Succeeded.Should().BeFalse();
+        handlePresenter.ViewModel.Message.Should().Be("Invalid email or password.");
     }
 
     [Fact]
@@ -155,11 +178,11 @@ public sealed class UserComponentTests
         var presenter = new LoginPresenter();
         var controller = new LoginController(new LoginInteractor(users, sessions, presenter));
 
-        controller.Login("@grace", "wrong-password");
+        controller.Login("grace@example.com", "wrong-password");
 
         presenter.ViewModel.Should().NotBeNull();
         presenter.ViewModel!.Succeeded.Should().BeFalse();
-        presenter.ViewModel.Message.Should().Be("Invalid handle or password.");
+        presenter.ViewModel.Message.Should().Be("Invalid email or password.");
         sessions.AllSessions.Should().BeEmpty();
     }
 

@@ -166,7 +166,7 @@ public sealed class SocialAppApiSliceTests
 
         var sessionResponse = await client.PostAsJsonAsync("/api/sessions", new
         {
-            handle = "@ada",
+            email = "ada@example.com",
             password = "Correct9!"
         });
 
