@@ -12,7 +12,7 @@ The web UI and API stay as delivery mechanisms. The API authenticates the bearer
 
 ## UI Behavior
 
-The feed renders a `Delete` button only for posts whose `AuthorHandle` matches the signed-in session handle, using case-insensitive comparison. Clicking `Delete` opens a browser confirmation prompt. If confirmed, the UI calls the delete endpoint, refreshes the feed, and displays the use-case message.
+The feed renders a `Delete` button only for posts whose `AuthorHandle` matches the signed-in session handle, using case-insensitive comparison. Clicking `Delete` opens a browser confirmation prompt. If confirmed, the UI calls the delete endpoint, refreshes the feed, and displays the presenter message.
 
 ## API Behavior
 
@@ -25,4 +25,3 @@ Add tests before implementation:
 - Post component test proves unauthorized deletion fails and leaves the post visible.
 - Infrastructure test proves deletion is persisted through the gateway.
 - API slice test proves only the creator can delete through the hosted endpoint.
-

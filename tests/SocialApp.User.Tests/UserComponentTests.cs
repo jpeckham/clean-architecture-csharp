@@ -3,6 +3,7 @@ using SocialApp.User.Controllers;
 using SocialApp.User.Entities;
 using SocialApp.User.Gateways;
 using SocialApp.User.Presenters;
+using SocialApp.User.ResponseModels;
 using SocialApp.User.UseCases;
 using Xunit;
 
@@ -187,6 +188,32 @@ public sealed class UserComponentTests
     }
 
     [Fact]
+    public void Login_interactor_returns_message_key_not_presentation_copy()
+    {
+        var users = new InMemoryUserGateway();
+        var sessions = new InMemorySessionGateway();
+        var output = new CapturingLoginOutput();
+        var interactor = new LoginInteractor(users, sessions, output);
+
+        interactor.Handle(new("missing@example.com", "wrong-password"));
+
+        output.Response.Should().NotBeNull();
+        output.Response!.MessageKey.Should().Be(UserMessageKeys.InvalidCredentials);
+        output.Response.MessageKey.Should().NotContain(" ");
+        output.Response.MessageKey.Should().NotEndWith(".");
+    }
+
+    [Fact]
+    public void Login_presenter_translates_message_key_for_view_model()
+    {
+        var presenter = new LoginPresenter();
+
+        presenter.Present(new(false, UserMessageKeys.InvalidCredentials, null, null));
+
+        presenter.ViewModel!.Message.Should().Be("Invalid email or password.");
+    }
+
+    [Fact]
     public void Forgot_and_change_password_use_component_gateways()
     {
         var users = new InMemoryUserGateway();
@@ -222,5 +249,12 @@ public sealed class UserComponentTests
         var viewPresenter = new ViewUserPresenter();
         new ViewUserController(new ViewUserInteractor(users, viewPresenter)).View("@ada");
         viewPresenter.ViewModel!.DisplayName.Should().Be("Ada Lovelace");
+    }
+
+    private sealed class CapturingLoginOutput : ILoginOutputBoundary
+    {
+        public LoginResponse? Response { get; private set; }
+
+        public void Present(LoginResponse response) => Response = response;
     }
 }

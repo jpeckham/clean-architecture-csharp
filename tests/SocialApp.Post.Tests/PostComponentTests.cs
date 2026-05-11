@@ -3,6 +3,7 @@ using SocialApp.Post.Controllers;
 using SocialApp.Post.Entities;
 using SocialApp.Post.Gateways;
 using SocialApp.Post.Presenters;
+using SocialApp.Post.ResponseModels;
 using SocialApp.Post.UseCases;
 using Xunit;
 
@@ -49,6 +50,32 @@ public sealed class PostComponentTests
         presenter.ViewModel.Should().NotBeNull();
         presenter.ViewModel!.Succeeded.Should().BeTrue();
         posts.AllPosts.Should().ContainSingle(p => p.AuthorHandle == "@ada");
+    }
+
+    [Fact]
+    public void Create_post_interactor_returns_message_key_not_presentation_copy()
+    {
+        var posts = new InMemoryPostGateway();
+        var output = new CapturingCreatePostOutput();
+        var interactor = new CreatePostInteractor(posts, output);
+
+        interactor.Handle(new("@ada", "First post"));
+
+        output.Response.Should().NotBeNull();
+        output.Response!.MessageKey.Should().Be(PostMessageKeys.PostCreated);
+        output.Response.MessageKey.Should().NotContain(" ");
+        output.Response.MessageKey.Should().NotEndWith(".");
+    }
+
+    [Fact]
+    public void Create_post_presenter_translates_message_key_for_view_model()
+    {
+        var presenter = new CreatePostPresenter();
+        var post = SocialPost.Create("@ada", "First post");
+
+        presenter.Present(new(true, PostMessageKeys.PostCreated, CreatePostInteractor.ToSummary(post)));
+
+        presenter.ViewModel!.Message.Should().Be("Post created.");
     }
 
     [Fact]
@@ -175,5 +202,12 @@ public sealed class PostComponentTests
             inner.Block(readerHandle, blockedHandle);
 
         public void ResetSaveCount() => SaveCount = 0;
+    }
+
+    private sealed class CapturingCreatePostOutput : ICreatePostOutputBoundary
+    {
+        public CreatePostResponse? Response { get; private set; }
+
+        public void Present(CreatePostResponse response) => Response = response;
     }
 }

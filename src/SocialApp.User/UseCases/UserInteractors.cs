@@ -12,7 +12,7 @@ public sealed class CreateAccountInteractor(IUserGateway users, ISessionGateway 
         var user = UserAccount.Create(request.DisplayName, request.Handle, request.Email, request.Password);
         users.Save(user);
         var token = sessions.CreateSession(user);
-        output.Present(new CreateAccountResponse(true, "Account created.", user.Handle, token));
+        output.Present(new CreateAccountResponse(true, UserMessageKeys.AccountCreated, user.Handle, token));
     }
 }
 
@@ -27,7 +27,7 @@ public sealed class RegisterAccountInteractor(
     {
         if (users.FindByHandle(request.Handle) is not null || users.FindByEmail(request.Email) is not null)
         {
-            output.Present(new RegisterAccountResponse(false, "Account already exists."));
+            output.Present(new RegisterAccountResponse(false, UserMessageKeys.AccountAlreadyExists));
             return;
         }
 
@@ -35,7 +35,7 @@ public sealed class RegisterAccountInteractor(
         registrations.Save(new PendingRegistration(request.DisplayName.Trim(), request.Handle.Trim(), request.Email.Trim(), request.Password));
         var code = codes.CreateCode(request.Email, "registration", TimeSpan.FromMinutes(15));
         email.Send(request.Email, "Verify your SocialApp account", $"Your SocialApp verification code is {code}.");
-        output.Present(new RegisterAccountResponse(true, "Verification code sent."));
+        output.Present(new RegisterAccountResponse(true, UserMessageKeys.VerificationCodeSent));
     }
 }
 
@@ -50,13 +50,13 @@ public sealed class VerifyRegistrationInteractor(
         var registration = registrations.FindByEmail(request.Email);
         if (registration is null || !codes.Verify(request.Email, "registration", request.Code))
         {
-            output.Present(new VerifyRegistrationResponse(false, "Verification code is invalid."));
+            output.Present(new VerifyRegistrationResponse(false, UserMessageKeys.VerificationCodeInvalid));
             return;
         }
 
         users.Save(UserAccount.Create(registration.DisplayName, registration.Handle, registration.Email, registration.Password));
         registrations.Remove(request.Email);
-        output.Present(new VerifyRegistrationResponse(true, "Account verified."));
+        output.Present(new VerifyRegistrationResponse(true, UserMessageKeys.AccountVerified));
     }
 }
 
@@ -67,11 +67,11 @@ public sealed class LoginInteractor(IUserGateway users, ISessionGateway sessions
         var user = users.FindByEmail(request.Email);
         if (user is null || !user.CheckPassword(request.Password))
         {
-            output.Present(new LoginResponse(false, "Invalid email or password.", null, null));
+            output.Present(new LoginResponse(false, UserMessageKeys.InvalidCredentials, null, null));
             return;
         }
 
-        output.Present(new LoginResponse(true, "Logged in.", user.Handle, sessions.CreateSession(user)));
+        output.Present(new LoginResponse(true, UserMessageKeys.LoggedIn, user.Handle, sessions.CreateSession(user)));
     }
 }
 
@@ -88,19 +88,19 @@ public sealed class LoginWithDeviceInteractor(
         var user = users.FindByEmail(request.Email);
         if (user is null || !user.CheckPassword(request.Password))
         {
-            output.Present(new LoginWithDeviceResponse(false, "Invalid email or password.", null, null, false));
+            output.Present(new LoginWithDeviceResponse(false, UserMessageKeys.InvalidCredentials, null, null, false));
             return;
         }
 
         if (devices.IsRemembered(user.Handle, request.DeviceId))
         {
-            output.Present(new LoginWithDeviceResponse(true, "Logged in.", user.Handle, sessions.CreateSession(user), false));
+            output.Present(new LoginWithDeviceResponse(true, UserMessageKeys.LoggedIn, user.Handle, sessions.CreateSession(user), false));
             return;
         }
 
         var code = codes.CreateCode(user.Email, "device", TimeSpan.FromMinutes(10));
         email.Send(user.Email, "Your SocialApp login code", $"Your SocialApp login code is {code}.");
-        output.Present(new LoginWithDeviceResponse(true, "One-time code sent.", user.Handle, null, true));
+        output.Present(new LoginWithDeviceResponse(true, UserMessageKeys.OneTimeCodeSent, user.Handle, null, true));
     }
 }
 
@@ -116,7 +116,7 @@ public sealed class VerifyDeviceOtpInteractor(
         var user = users.FindByHandle(request.Handle);
         if (user is null || !codes.Verify(user.Email, "device", request.Code))
         {
-            output.Present(new VerifyDeviceOtpResponse(false, "One-time code is invalid.", null, null));
+            output.Present(new VerifyDeviceOtpResponse(false, UserMessageKeys.OneTimeCodeInvalid, null, null));
             return;
         }
 
@@ -125,7 +125,7 @@ public sealed class VerifyDeviceOtpInteractor(
             devices.Remember(user.Handle, request.DeviceId);
         }
 
-        output.Present(new VerifyDeviceOtpResponse(true, "Logged in.", user.Handle, sessions.CreateSession(user)));
+        output.Present(new VerifyDeviceOtpResponse(true, UserMessageKeys.LoggedIn, user.Handle, sessions.CreateSession(user)));
     }
 }
 
@@ -136,11 +136,11 @@ public sealed class ForgotPasswordInteractor(IUserGateway users, IPasswordResetG
         var user = users.FindByEmail(request.Email);
         if (user is null)
         {
-            output.Present(new ForgotPasswordResponse(false, "Account not found.", null));
+            output.Present(new ForgotPasswordResponse(false, UserMessageKeys.AccountNotFound, null));
             return;
         }
 
-        output.Present(new ForgotPasswordResponse(true, "Password reset requested.", resets.CreateResetToken(user)));
+        output.Present(new ForgotPasswordResponse(true, UserMessageKeys.PasswordResetRequested, resets.CreateResetToken(user)));
     }
 }
 
@@ -151,19 +151,19 @@ public sealed class ChangePasswordInteractor(IUserGateway users, IPasswordResetG
         var user = resets.FindByToken(request.ResetToken);
         if (user is null)
         {
-            output.Present(new ChangePasswordResponse(false, "Reset token is invalid."));
+            output.Present(new ChangePasswordResponse(false, UserMessageKeys.ResetTokenInvalid));
             return;
         }
 
         if (users.FindByHandle(user.Handle) is null)
         {
-            output.Present(new ChangePasswordResponse(false, "Account not found."));
+            output.Present(new ChangePasswordResponse(false, UserMessageKeys.AccountNotFound));
             return;
         }
 
         user.ChangePassword(request.NewPassword);
         resets.Consume(request.ResetToken);
-        output.Present(new ChangePasswordResponse(true, "Password changed."));
+        output.Present(new ChangePasswordResponse(true, UserMessageKeys.PasswordChanged));
     }
 }
 
@@ -185,7 +185,7 @@ public sealed class RequestPasswordResetInteractor(
         }
 
         _ = clock.UtcNow;
-        output.Present(new RequestPasswordResetResponse(true, "If the account exists, a reset link was sent."));
+        output.Present(new RequestPasswordResetResponse(true, UserMessageKeys.PasswordResetLinkSentIfAccountExists));
     }
 }
 
@@ -201,19 +201,19 @@ public sealed class ResetPasswordInteractor(
         var token = resets.Consume(request.ResetToken);
         if (token is null)
         {
-            output.Present(new ResetPasswordResponse(false, "Reset link is invalid or expired."));
+            output.Present(new ResetPasswordResponse(false, UserMessageKeys.ResetLinkInvalidOrExpired));
             return;
         }
 
         var user = users.FindByEmail(token.Email);
         if (user is null)
         {
-            output.Present(new ResetPasswordResponse(false, "Account not found."));
+            output.Present(new ResetPasswordResponse(false, UserMessageKeys.AccountNotFound));
             return;
         }
 
         user.ChangePassword(request.NewPassword);
-        output.Present(new ResetPasswordResponse(true, "Password changed."));
+        output.Present(new ResetPasswordResponse(true, UserMessageKeys.PasswordChanged));
     }
 }
 
@@ -233,7 +233,7 @@ public sealed class ViewUserInteractor(IUserGateway users, IViewUserOutputBounda
     {
         var user = users.FindByHandle(request.Handle);
         output.Present(user is null
-            ? new ViewUserResponse(false, "User not found.", null, null)
-            : new ViewUserResponse(true, "User found.", user.Handle, user.DisplayName));
+            ? new ViewUserResponse(false, UserMessageKeys.UserNotFound, null, null)
+            : new ViewUserResponse(true, UserMessageKeys.UserFound, user.Handle, user.DisplayName));
     }
 }

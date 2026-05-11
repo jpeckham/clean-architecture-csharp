@@ -26,7 +26,12 @@ public sealed record MuteUserPostsRequest(string ReaderHandle, string MutedHandl
 ```csharp
 namespace SocialApp.Post.ResponseModels;
 
-public sealed record MuteUserPostsResponse(bool Succeeded, string Message);
+public static class PostMessageKeys
+{
+    public const string UserMuted = "USER_MUTED";
+}
+
+public sealed record MuteUserPostsResponse(bool Succeeded, string MessageKey);
 ```
 
 Add a view model if callers need formatted output:
@@ -65,12 +70,13 @@ public sealed class MuteUserPostsInteractor(
     public void Handle(MuteUserPostsRequest request)
     {
         posts.Mute(request.ReaderHandle, request.MutedHandle);
-        output.Present(new MuteUserPostsResponse(true, "User muted."));
+        output.Present(new MuteUserPostsResponse(true, PostMessageKeys.UserMuted));
     }
 }
 ```
 
 If a gateway capability is missing, add it to the owning component's gateway interface. Do not introduce `IRepository<T>`.
+Use cases return message keys, not user-facing copy. Keep presentation text in the presenter or the view.
 
 ## 5. Add Controller And Presenter
 
@@ -92,7 +98,13 @@ public sealed class MuteUserPostsPresenter : IMuteUserPostsOutputBoundary
     public MuteUserPostsViewModel? ViewModel { get; private set; }
 
     public void Present(MuteUserPostsResponse response) =>
-        ViewModel = new MuteUserPostsViewModel(response.Succeeded, response.Message);
+        ViewModel = new MuteUserPostsViewModel(response.Succeeded, ToMessage(response.MessageKey));
+
+    private static string ToMessage(string key) => key switch
+    {
+        PostMessageKeys.UserMuted => "User muted.",
+        _ => key
+    };
 }
 ```
 
