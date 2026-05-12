@@ -38,9 +38,9 @@ public sealed class ScrollPostsInteractor(IPostGateway posts, IScrollPostsOutput
     public void Handle(ScrollPostsRequest request) => output.Present(new(posts.ScrollFor(request.ReaderHandle, request.Limit).Select(post => CreatePostInteractor.ToSummary(post, posts, request.ReaderHandle)).ToArray()));
 }
 
-public sealed class SearchPostsInteractor(IPostSearchGateway search, ISearchPostsOutputBoundary output) : ISearchPostsInputBoundary
+public sealed class SearchPostsInteractor(IPostSearchGateway search, ISearchPostsOutputBoundary output, IPostGateway? posts = null) : ISearchPostsInputBoundary
 {
-    public void Handle(SearchPostsRequest request) => output.Present(new(search.Search(request.Query).Select(post => CreatePostInteractor.ToSummary(post)).ToArray()));
+    public void Handle(SearchPostsRequest request) => output.Present(new(search.Search(request.Query).Select(post => CreatePostInteractor.ToSummary(post, posts, request.ReaderHandle)).ToArray()));
 }
 
 public sealed class FollowUserPostsInteractor(IPostGateway posts, IFollowUserPostsOutputBoundary output) : IFollowUserPostsInputBoundary

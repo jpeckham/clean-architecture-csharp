@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components;
 using NetArchTest.Rules;
 using Xunit;
 
@@ -109,5 +110,14 @@ public sealed class ArchitectureRulesTests
 
         componentReferences["SocialApp.User"].Should().BeEmpty();
         componentReferences["SocialApp.Post"].Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Feed_has_separate_recent_and_search_routes()
+    {
+        typeof(SocialApp.Web.Pages.Feed)
+            .GetCustomAttributes<RouteAttribute>()
+            .Select(attribute => attribute.Template)
+            .Should().BeEquivalentTo(new[] { "/feed", "/feed/search" });
     }
 }

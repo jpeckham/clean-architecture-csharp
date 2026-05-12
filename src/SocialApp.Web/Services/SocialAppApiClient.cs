@@ -81,6 +81,9 @@ public sealed class SocialAppApiClient(HttpClient http)
     public async Task<RecentPostsResult?> GetRecentPostsAsync(string readerHandle, int limit = 20) =>
         await http.GetFromJsonAsync<RecentPostsResult>($"/api/posts/recent?readerHandle={Uri.EscapeDataString(readerHandle)}&limit={limit}");
 
+    public async Task<RecentPostsResult?> SearchPostsAsync(string readerHandle, string query) =>
+        await http.GetFromJsonAsync<RecentPostsResult>($"/api/posts/search?readerHandle={Uri.EscapeDataString(readerHandle)}&query={Uri.EscapeDataString(query)}");
+
     private static async Task<T?> ReadAsync<T>(HttpResponseMessage response)
     {
         if (!response.IsSuccessStatusCode &&

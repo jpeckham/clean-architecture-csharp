@@ -5,7 +5,7 @@ using SocialApp.Post.Gateways;
 
 namespace SocialApp.Infrastructure.CosmosMongo.Gateways;
 
-public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) : IPostGateway
+public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) : IPostGateway, IPostSearchGateway
 {
     private readonly IMongoCollection<PostDocument> _posts = collections.Posts;
     private readonly IMongoCollection<HandleSetDocument> _follows = collections.Follows;
@@ -46,6 +46,24 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
             .Select(CosmosMongoMappers.ToEntity)
             .ToArray();
     }
+
+    public IReadOnlyList<SocialPost> Search(string query)
+    {
+        var allPosts = _posts.Find(p => !p.IsDeleted).ToList();
+        var postsById = allPosts.ToDictionary(p => p.Id);
+
+        return allPosts
+            .Where(p => MatchesContent(p, query, postsById))
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(CosmosMongoMappers.ToEntity)
+            .ToArray();
+    }
+
+    private static bool MatchesContent(PostDocument post, string query, IReadOnlyDictionary<Guid, PostDocument> postsById) =>
+        post.Content.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+        post.OriginalPostId is { } originalPostId &&
+        postsById.TryGetValue(originalPostId, out var originalPost) &&
+        originalPost.Content.Contains(query, StringComparison.OrdinalIgnoreCase);
 
     public void Follow(string readerHandle, string followedHandle) => AddToSet(_follows, readerHandle, followedHandle);
 

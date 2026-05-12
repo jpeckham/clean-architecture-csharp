@@ -160,9 +160,27 @@ form {
     font-size: 18px;
 }
 
+.feed-title-row {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+.feed-title-row h2 {
+    margin: 0;
+}
+
 .feed {
     display: grid;
     gap: 12px;
+}
+
+.search-form {
+    align-items: center;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .actions {

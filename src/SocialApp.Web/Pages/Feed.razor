@@ -1,4 +1,5 @@
 @page "/feed"
+@page "/feed/search"
 @inject SocialApp.Web.Services.SocialAppApiClient Api
 @inject SocialApp.Web.Services.AppSession Session
 @inject NavigationManager Navigation
@@ -13,7 +14,7 @@
             <p>Signed in as @Session.Handle</p>
         </div>
         <div class="actions">
-            <button type="button" class="secondary" @onclick="LoadPostsAsync" disabled="@isBusy">Refresh</button>
+            <button type="button" class="secondary" @onclick="RefreshCurrentPostsAsync" disabled="@isBusy">Refresh</button>
             <button type="button" class="secondary" @onclick="SignOut">Log Out</button>
         </div>
     </header>
@@ -28,10 +29,20 @@
         </section>
 
         <section class="feed">
-            <h2>Recent</h2>
+            <div class="feed-title-row">
+                <h2>@(IsSearching ? "Search Results" : "Recent")</h2>
+                @if (IsSearching)
+                {
+                    <button type="button" class="secondary compact" @onclick="ClearSearchAsync" disabled="@isBusy">Clear</button>
+                }
+            </div>
+            <EditForm Model="@search" OnValidSubmit="SearchPostsAsync" class="search-form">
+                <InputText @bind-Value="search.Query" placeholder="Search posts by content" />
+                <button type="submit" class="compact" disabled="@isBusy">Search</button>
+            </EditForm>
             @if (posts.Count == 0)
             {
-                <p class="empty">No posts yet.</p>
+                <p class="empty">@(IsSearching ? "No posts matched your search." : "No posts yet.")</p>
             }
             else
             {
@@ -105,17 +116,31 @@
 
 @code {
     private readonly PostForm post = new();
+    private readonly SearchForm search = new();
     private readonly List<SocialApp.Web.Services.PostSummaryResult> posts = new();
     private string? message;
     private Guid? activeRepostPostId;
     private string repostContent = string.Empty;
     private bool isBusy;
 
-    protected override async Task OnInitializedAsync()
+    [SupplyParameterFromQuery(Name = "query")]
+    public string? Query { get; set; }
+
+    private bool IsSearching => !string.IsNullOrWhiteSpace(search.Query);
+
+    protected override async Task OnParametersSetAsync()
     {
         if (!Session.IsLoggedIn)
         {
             Navigation.NavigateTo("/");
+            return;
+        }
+
+        search.Query = Query ?? string.Empty;
+
+        if (IsSearching)
+        {
+            await SearchCurrentQueryAsync();
             return;
         }
 
@@ -135,7 +160,7 @@
             var result = await Api.CreatePostAsync(Session.SessionToken!, new(post.Content));
             message = result?.Message ?? "Post failed.";
             post.Content = string.Empty;
-            await LoadPostsAsync();
+            await RefreshCurrentPostsAsync();
         });
     }
 
@@ -157,7 +182,7 @@
         {
             var result = await Api.DeletePostAsync(Session.SessionToken!, item.Id);
             message = result?.Message ?? "Delete failed.";
-            await LoadPostsAsync();
+            await RefreshCurrentPostsAsync();
         });
     }
 
@@ -175,7 +200,7 @@
                 ? await Api.DeleteLikeAsync(Session.SessionToken!, item.Id)
                 : await Api.LikePostAsync(Session.SessionToken!, item.Id);
             message = result?.Message ?? "Like update failed.";
-            await LoadPostsAsync();
+            await RefreshCurrentPostsAsync();
         });
     }
 
@@ -199,7 +224,7 @@
             {
                 var result = await Api.DeleteMyRepostAsync(Session.SessionToken!, item.Id);
                 message = result?.Message ?? "Delete repost failed.";
-                await LoadPostsAsync();
+                await RefreshCurrentPostsAsync();
             });
             return;
         }
@@ -222,7 +247,7 @@
             message = result?.Message ?? "Repost failed.";
             activeRepostPostId = null;
             repostContent = string.Empty;
-            await LoadPostsAsync();
+            await RefreshCurrentPostsAsync();
         });
     }
 
@@ -240,6 +265,46 @@
         }
 
         var result = await Api.GetRecentPostsAsync(Session.Handle!);
+        posts.Clear();
+        posts.AddRange(result?.Posts ?? Array.Empty<SocialApp.Web.Services.PostSummaryResult>());
+    }
+
+    private async Task SearchPostsAsync()
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(search.Query))
+        {
+            Navigation.NavigateTo("/feed");
+            return;
+        }
+
+        Navigation.NavigateTo($"/feed/search?query={Uri.EscapeDataString(search.Query.Trim())}");
+    }
+
+    private void ClearSearchAsync()
+    {
+        Navigation.NavigateTo("/feed");
+    }
+
+    private async Task RefreshCurrentPostsAsync()
+    {
+        if (IsSearching)
+        {
+            await SearchCurrentQueryAsync();
+            return;
+        }
+
+        await LoadPostsAsync();
+    }
+
+    private async Task SearchCurrentQueryAsync()
+    {
+        var result = await Api.SearchPostsAsync(Session.Handle!, search.Query);
         posts.Clear();
         posts.AddRange(result?.Posts ?? Array.Empty<SocialApp.Web.Services.PostSummaryResult>());
     }
@@ -280,5 +345,10 @@
     private sealed class PostForm
     {
         public string Content { get; set; } = string.Empty;
+    }
+
+    private sealed class SearchForm
+    {
+        public string Query { get; set; } = string.Empty;
     }
 }

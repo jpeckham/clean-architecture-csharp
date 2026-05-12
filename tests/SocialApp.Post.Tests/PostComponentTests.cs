@@ -120,6 +120,22 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void Search_posts_matches_reposts_by_quoted_original_content()
+    {
+        var posts = new InMemoryPostGateway();
+        var search = new InMemoryPostSearchGateway(posts);
+        var original = posts.Save(SocialPost.Create("@ada", "test2 original"));
+        var repost = posts.Save(SocialPost.Repost(original.Id, "@grace", "unrelated note"));
+        posts.Save(SocialPost.Create("@linus", "other content"));
+
+        var results = search.Search("test2");
+
+        results.Should().Contain(p => p.Id == original.Id);
+        results.Should().Contain(p => p.Id == repost.Id);
+        results.Should().NotContain(p => p.AuthorHandle == "@linus");
+    }
+
+    [Fact]
     public void Like_reply_repost_and_delete_are_separate_use_cases()
     {
         var posts = new CountingPostGateway();

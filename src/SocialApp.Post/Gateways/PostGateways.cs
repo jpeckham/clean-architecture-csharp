@@ -81,8 +81,21 @@ public sealed class InMemoryPostGateway : IPostGateway
 
 public sealed class InMemoryPostSearchGateway(IPostGateway posts) : IPostSearchGateway
 {
-    public IReadOnlyList<SocialPost> Search(string query) =>
-        ((InMemoryPostGateway)posts).AllPosts
-        .Where(p => !p.IsDeleted && p.Content.Contains(query, StringComparison.OrdinalIgnoreCase))
-        .ToArray();
+    public IReadOnlyList<SocialPost> Search(string query)
+    {
+        var allPosts = ((InMemoryPostGateway)posts).AllPosts;
+        var postsById = allPosts.ToDictionary(p => p.Id);
+
+        return allPosts
+            .Where(p => !p.IsDeleted)
+            .Where(p => MatchesContent(p, query, postsById))
+            .ToArray();
+    }
+
+    private static bool MatchesContent(SocialPost post, string query, IReadOnlyDictionary<Guid, SocialPost> postsById) =>
+        post.Content.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+        post.OriginalPostId is { } originalPostId &&
+        postsById.TryGetValue(originalPostId, out var originalPost) &&
+        !originalPost.IsDeleted &&
+        originalPost.Content.Contains(query, StringComparison.OrdinalIgnoreCase);
 }

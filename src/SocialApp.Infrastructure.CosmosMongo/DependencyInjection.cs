@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddSingleton<IUserGateway, CosmosMongoUserGateway>();
         services.AddSingleton<ISessionGateway, CosmosMongoSessionGateway>();
         services.AddSingleton<IPostGateway, CosmosMongoPostGateway>();
+        services.AddSingleton<IPostSearchGateway, CosmosMongoPostGateway>();
         services.AddSingleton<IPendingRegistrationGateway, CosmosMongoPendingRegistrationGateway>();
         services.AddSingleton<IVerificationCodeGateway, CosmosMongoVerificationCodeGateway>();
         services.AddSingleton<IRememberedDeviceGateway, CosmosMongoRememberedDeviceGateway>();

@@ -170,6 +170,30 @@ public sealed class SocialAppApiSliceTests
     }
 
     [Fact]
+    public async Task Search_posts_returns_matching_content_with_reader_state()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var compilerResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Compiler notes from Ada" });
+        await client.PostAsJsonAsync("/api/posts", new { content = "Math notes from Ada" });
+        var compilerPost = await compilerResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        await client.PostAsync($"/api/posts/{compilerPost!.Id}/likes", null);
+
+        var result = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/search?readerHandle=@grace&query=compiler");
+
+        result!.Posts.Should().ContainSingle(p =>
+            p.Id == compilerPost.Id &&
+            p.Content == "Compiler notes from Ada" &&
+            p.LikeCount == 1 &&
+            p.LikedByCurrentReader);
+        result.Posts.Should().NotContain(p => p.Content.Contains("Math", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Delete_post_requires_valid_bearer_token()
     {
         await using var factory = CreateInMemoryFactory();
@@ -294,9 +318,11 @@ public sealed class SocialAppApiSliceTests
                 services.RemoveAll<IUserGateway>();
                 services.RemoveAll<ISessionGateway>();
                 services.RemoveAll<IPostGateway>();
+                services.RemoveAll<IPostSearchGateway>();
                 services.AddSingleton<IUserGateway, InMemoryUserGateway>();
                 services.AddSingleton<ISessionGateway, InMemorySessionGateway>();
                 services.AddSingleton<IPostGateway, InMemoryPostGateway>();
+                services.AddSingleton<IPostSearchGateway, InMemoryPostSearchGateway>();
             }));
 
     private static async Task<AuthResult> CreateAccountAsync(HttpClient client, string handle, string email)

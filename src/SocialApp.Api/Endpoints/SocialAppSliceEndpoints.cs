@@ -28,6 +28,7 @@ public static class SocialAppSliceEndpoints
         endpoints.MapDelete("/api/posts/{postId:guid}/likes", DeleteLikeFromPost);
         endpoints.MapPost("/api/posts/{postId:guid}/reposts", RepostPost);
         endpoints.MapDelete("/api/posts/{postId:guid}/reposts/mine", DeleteMyRepost);
+        endpoints.MapGet("/api/posts/search", SearchPosts);
         endpoints.MapGet("/api/posts/recent", RecentPosts);
         return endpoints;
     }
@@ -375,6 +376,13 @@ public static class SocialAppSliceEndpoints
         var presenter = new ScrollPostsPresenter();
         var controller = new ScrollPostsController(new ScrollPostsInteractor(posts, presenter));
         controller.Scroll(readerHandle, Math.Clamp(limit ?? 20, 1, 100));
+        return Results.Ok(presenter.ViewModel);
+    }
+
+    private static IResult SearchPosts(string readerHandle, string query, IPostGateway posts, IPostSearchGateway search)
+    {
+        var presenter = new SearchPostsPresenter();
+        new SearchPostsInteractor(search, presenter, posts).Handle(new(query, readerHandle));
         return Results.Ok(presenter.ViewModel);
     }
 

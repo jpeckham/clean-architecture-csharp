@@ -2,7 +2,7 @@ namespace SocialApp.Post.RequestModels;
 
 public sealed record CreatePostRequest(string AuthorHandle, string Content);
 public sealed record ScrollPostsRequest(string ReaderHandle, int Limit);
-public sealed record SearchPostsRequest(string Query);
+public sealed record SearchPostsRequest(string Query, string? ReaderHandle = null);
 public sealed record FollowUserPostsRequest(string ReaderHandle, string FollowedHandle);
 public sealed record BlockUserPostsRequest(string ReaderHandle, string BlockedHandle);
 public sealed record AddLikeToPostRequest(Guid PostId, string Handle);
