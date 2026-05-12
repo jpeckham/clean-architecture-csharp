@@ -194,6 +194,22 @@ public sealed class SocialAppApiSliceTests
     }
 
     [Fact]
+    public async Task View_user_returns_display_name_and_handle()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        await CreateAccountAsync(client, "@ada", "ada@example.com", "Ada Lovelace");
+
+        var result = await client.GetFromJsonAsync<UserProfileResult>("/api/users/%40ada");
+        var missingResponse = await client.GetAsync("/api/users/%40missing");
+
+        result!.Succeeded.Should().BeTrue();
+        result.DisplayName.Should().Be("Ada Lovelace");
+        result.Handle.Should().Be("@ada");
+        missingResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Delete_post_requires_valid_bearer_token()
     {
         await using var factory = CreateInMemoryFactory();
@@ -325,11 +341,11 @@ public sealed class SocialAppApiSliceTests
                 services.AddSingleton<IPostSearchGateway, InMemoryPostSearchGateway>();
             }));
 
-    private static async Task<AuthResult> CreateAccountAsync(HttpClient client, string handle, string email)
+    private static async Task<AuthResult> CreateAccountAsync(HttpClient client, string handle, string email, string? displayName = null)
     {
         var response = await client.PostAsJsonAsync("/api/accounts", new
         {
-            displayName = handle.TrimStart('@'),
+            displayName = displayName ?? handle.TrimStart('@'),
             handle,
             email,
             password = "Correct9!"
@@ -344,6 +360,7 @@ public sealed class SocialAppApiSliceTests
     private sealed record SimpleResult(bool Succeeded, string Message);
     private sealed record DevEmailsResult(IReadOnlyList<DevEmailResult> Emails);
     private sealed record DevEmailResult(string To, string Subject, string Body);
+    private sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
     private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
     private sealed record PostSummaryResult(

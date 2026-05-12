@@ -218,6 +218,17 @@ form {
     color: #334155;
 }
 
+.author-link {
+    color: #0f6f5c;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.author-link:hover,
+.author-link:focus-visible {
+    text-decoration: underline;
+}
+
 .quoted-post p {
     color: #475569;
 }
@@ -316,6 +327,21 @@ form {
     border: 1px solid #7dd3fc;
     border-radius: 6px;
     padding: 12px;
+}
+
+.profile-panel {
+    max-width: 520px;
+}
+
+.profile-panel h2 {
+    font-size: 24px;
+    margin: 0;
+}
+
+.profile-handle {
+    color: #64748b;
+    font-weight: 700;
+    margin: 6px 0 0;
 }
 
 #blazor-error-ui {

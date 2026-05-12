@@ -50,7 +50,7 @@
                 {
                     <article class="post">
                         <div class="post-header">
-                            <strong>@item.AuthorHandle</strong>
+                            <a class="author-link" href="@UserUrl(item.AuthorHandle)">@item.AuthorHandle</a>
                             @if (CanDelete(item))
                             {
                                 <button type="button" class="danger compact" @onclick="() => DeletePostAsync(item)" disabled="@isBusy">Delete</button>
@@ -59,7 +59,7 @@
                         @if (item.QuotedPost is not null)
                         {
                             <div class="quoted-post">
-                                <strong>@item.QuotedPost.AuthorHandle</strong>
+                                <a class="author-link" href="@UserUrl(item.QuotedPost.AuthorHandle)">@item.QuotedPost.AuthorHandle</a>
                                 <p>@item.QuotedPost.Content</p>
                             </div>
                         }
@@ -329,6 +329,8 @@
 
     private bool CanDelete(SocialApp.Web.Services.PostSummaryResult item) =>
         string.Equals(item.AuthorHandle, Session.Handle, StringComparison.OrdinalIgnoreCase);
+
+    private static string UserUrl(string handle) => $"/users/{Uri.EscapeDataString(handle)}";
 
     private bool IsOwnRepostTarget(SocialApp.Web.Services.PostSummaryResult item)
     {

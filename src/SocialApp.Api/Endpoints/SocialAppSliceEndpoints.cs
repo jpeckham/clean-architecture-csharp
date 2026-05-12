@@ -22,6 +22,7 @@ public static class SocialAppSliceEndpoints
         endpoints.MapPost("/api/sessions/device/verify", VerifyDeviceOtp);
         endpoints.MapPost("/api/password-reset-requests", RequestPasswordReset);
         endpoints.MapPost("/api/password-resets", ResetPassword);
+        endpoints.MapGet("/api/users/{handle}", ViewUser);
         endpoints.MapPost("/api/posts", CreatePost);
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
         endpoints.MapPost("/api/posts/{postId:guid}/likes", AddLikeToPost);
@@ -171,6 +172,15 @@ public static class SocialAppSliceEndpoints
         return presenter.ViewModel is { Succeeded: true }
             ? Results.Ok(presenter.ViewModel)
             : Results.BadRequest(presenter.ViewModel);
+    }
+
+    private static IResult ViewUser(string handle, IUserGateway users)
+    {
+        var presenter = new ViewUserPresenter();
+        new ViewUserController(new ViewUserInteractor(users, presenter)).View(handle);
+        return presenter.ViewModel is { Succeeded: true }
+            ? Results.Ok(presenter.ViewModel)
+            : Results.NotFound(presenter.ViewModel);
     }
 
     private static IResult CreatePost(CreatePostHttpRequest request, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)

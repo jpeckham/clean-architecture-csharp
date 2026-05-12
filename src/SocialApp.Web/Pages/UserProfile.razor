@@ -1,0 +1,61 @@
+@page "/users/{Handle}"
+@inject SocialApp.Web.Services.SocialAppApiClient Api
+@inject SocialApp.Web.Services.AppSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>@(profile?.Handle ?? "User") - SocialApp</PageTitle>
+
+<section class="workspace">
+    <header class="masthead">
+        <div>
+            <h1>User Profile</h1>
+            <p>Signed in as @Session.Handle</p>
+        </div>
+        <div class="actions">
+            <button type="button" class="secondary" @onclick="BackToFeed">Feed</button>
+        </div>
+    </header>
+
+    <section class="panel profile-panel">
+        @if (isLoading)
+        {
+            <p class="status">Loading profile...</p>
+        }
+        else if (profile is { Succeeded: true })
+        {
+            <h2>@profile.DisplayName</h2>
+            <p class="profile-handle">@profile.Handle</p>
+        }
+        else
+        {
+            <h2>User not found</h2>
+            <p class="status">@message</p>
+        }
+    </section>
+</section>
+
+@code {
+    [Parameter]
+    public string Handle { get; set; } = string.Empty;
+
+    private SocialApp.Web.Services.UserProfileResult? profile;
+    private string? message;
+    private bool isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        isLoading = true;
+        message = null;
+        profile = await Api.GetUserAsync(Handle);
+        message = profile?.Message ?? "User not found.";
+        isLoading = false;
+    }
+
+    private void BackToFeed() => Navigation.NavigateTo("/feed");
+}

@@ -84,6 +84,9 @@ public sealed class SocialAppApiClient(HttpClient http)
     public async Task<RecentPostsResult?> SearchPostsAsync(string readerHandle, string query) =>
         await http.GetFromJsonAsync<RecentPostsResult>($"/api/posts/search?readerHandle={Uri.EscapeDataString(readerHandle)}&query={Uri.EscapeDataString(query)}");
 
+    public async Task<UserProfileResult?> GetUserAsync(string handle) =>
+        await ReadAsync<UserProfileResult>(await http.GetAsync($"/api/users/{Uri.EscapeDataString(handle)}"));
+
     private static async Task<T?> ReadAsync<T>(HttpResponseMessage response)
     {
         if (!response.IsSuccessStatusCode &&
@@ -111,6 +114,7 @@ public sealed record AuthResult(bool Succeeded, string Message, string? Handle, 
 public sealed record DeviceLoginResult(bool Succeeded, string Message, string? Handle, string? SessionToken, bool OtpRequired);
 public sealed record CreatePostResult(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);
 public sealed record SimpleResult(bool Succeeded, string Message);
+public sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName);
 public sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
 public sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
 public sealed record PostSummaryResult(
