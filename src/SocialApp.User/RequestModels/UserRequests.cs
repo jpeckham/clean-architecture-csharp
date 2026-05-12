@@ -11,4 +11,7 @@ public sealed record ChangePasswordRequest(string ResetToken, string NewPassword
 public sealed record RequestPasswordResetRequest(string Email, string ResetBaseUrl);
 public sealed record ResetPasswordRequest(string ResetToken, string NewPassword);
 public sealed record SearchUserRequest(string Query);
-public sealed record ViewUserRequest(string Handle);
+public sealed record ViewUserRequest(string Handle, string ReaderHandle, int RecentPostLimit);
+public sealed record BeginProfileImageUploadRequest(string OwnerHandle, string ContentType, long ByteLength);
+public sealed record CompleteProfileImageUploadRequest(string CurrentUserHandle, string ProfileHandle, Guid AssetId, int? Width, int? Height);
+public sealed record RemoveProfileImageRequest(string CurrentUserHandle, string ProfileHandle);

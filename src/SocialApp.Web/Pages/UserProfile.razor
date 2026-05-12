@@ -1,4 +1,5 @@
 @page "/users/{Handle}"
+@using System.Globalization
 @inject SocialApp.Web.Services.SocialAppApiClient Api
 @inject SocialApp.Web.Services.AppSession Session
 @inject NavigationManager Navigation
@@ -23,8 +24,80 @@
         }
         else if (profile is { Succeeded: true })
         {
-            <h2>@profile.DisplayName</h2>
-            <p class="profile-handle">@profile.Handle</p>
+            <div class="profile-header">
+                <div class="profile-image-frame">
+                    @if (profile.ProfileImage is not null)
+                    {
+                        <img src="@Api.ToAbsoluteApiUrl(profile.ProfileImage.ImageUrl)" alt="" />
+                    }
+                    else
+                    {
+                        <span>@Initials(profile.DisplayName, profile.Handle)</span>
+                    }
+                </div>
+                <div class="profile-heading">
+                    <h2>@profile.DisplayName</h2>
+                    <p class="profile-handle">@profile.Handle</p>
+                    @if (CanEditProfile)
+                    {
+                        <div class="profile-image-actions">
+                            <label class="file-button">
+                                <InputFile OnChange="UploadProfileImageAsync" accept="image/*" disabled="@isUploading" />
+                                <span>@(isUploading ? "Uploading..." : "Upload Image")</span>
+                            </label>
+                            @if (profile.ProfileImage is not null)
+                            {
+                                <button type="button" class="secondary compact" @onclick="RemoveProfileImageAsync" disabled="@isUploading">Remove</button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(message) && CanEditProfile)
+            {
+                <p class="message">@message</p>
+            }
+            <section class="profile-posts">
+                <h3>Recent Posts</h3>
+                @if (profile.Posts.Count == 0)
+                {
+                    <p class="empty">No posts yet.</p>
+                }
+                else
+                {
+                    @foreach (var item in profile.Posts)
+                    {
+                        <article class="post">
+                            <div class="post-header">
+                                <div class="post-author-line">
+                                    <a class="author-link" href="@UserUrl(item.AuthorHandle)">@item.AuthorHandle</a>
+                                    <time class="post-time" datetime="@item.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(item.CreatedAt)</time>
+                                </div>
+                            </div>
+                            @if (item.QuotedPost is not null)
+                            {
+                                <div class="quoted-post">
+                                    <div class="post-author-line">
+                                        <a class="author-link" href="@UserUrl(item.QuotedPost.AuthorHandle)">@item.QuotedPost.AuthorHandle</a>
+                                        <time class="post-time" datetime="@item.QuotedPost.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(item.QuotedPost.CreatedAt)</time>
+                                    </div>
+                                    <p>@item.QuotedPost.Content</p>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.Content))
+                            {
+                                <p>@item.Content</p>
+                            }
+                            <div class="post-actions">
+                                <span class="heart-button @(item.LikedByCurrentReader ? "liked" : null)" aria-label="Likes">@(item.LikedByCurrentReader ? "\u2665" : "\u2661")</span>
+                                <span class="like-count">@item.LikeCount</span>
+                                <span class="repost-button @(item.RepostedByCurrentReader ? "reposted" : null)" aria-label="Reposts">@("\u27f3")</span>
+                                <span class="repost-count">@item.RepostCount</span>
+                            </div>
+                        </article>
+                    }
+                }
+            </section>
         }
         else
         {
@@ -41,6 +114,11 @@
     private SocialApp.Web.Services.UserProfileResult? profile;
     private string? message;
     private bool isLoading = true;
+    private bool isUploading;
+
+    private bool CanEditProfile =>
+        profile?.Handle is not null &&
+        string.Equals(profile.Handle, Session.Handle, StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -52,10 +130,102 @@
 
         isLoading = true;
         message = null;
-        profile = await Api.GetUserAsync(Handle);
+        profile = await Api.GetUserAsync(Session.SessionToken!, Handle);
         message = profile?.Message ?? "User not found.";
         isLoading = false;
     }
 
+    private async Task UploadProfileImageAsync(InputFileChangeEventArgs args)
+    {
+        if (!Session.IsLoggedIn || args.File is null)
+        {
+            return;
+        }
+
+        isUploading = true;
+        message = null;
+        try
+        {
+            var result = await Api.UploadMyProfileImageAsync(Session.SessionToken!, args.File);
+            message = result?.Message ?? "Profile image upload failed.";
+            profile = await Api.GetUserAsync(Session.SessionToken!, Handle);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private async Task RemoveProfileImageAsync()
+    {
+        if (!Session.IsLoggedIn)
+        {
+            return;
+        }
+
+        isUploading = true;
+        message = null;
+        try
+        {
+            var result = await Api.RemoveMyProfileImageAsync(Session.SessionToken!);
+            message = result?.Message ?? "Profile image removal failed.";
+            profile = await Api.GetUserAsync(Session.SessionToken!, Handle);
+        }
+        catch (HttpRequestException ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
     private void BackToFeed() => Navigation.NavigateTo("/feed");
+
+    private static string UserUrl(string handle) => $"/users/{Uri.EscapeDataString(handle)}";
+
+    private static string Initials(string? displayName, string? handle)
+    {
+        var source = string.IsNullOrWhiteSpace(displayName) ? handle?.TrimStart('@') : displayName;
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return "?";
+        }
+
+        var parts = source.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+
+    private static string FormatTimestamp(DateTimeOffset createdAt)
+    {
+        var local = createdAt.ToLocalTime();
+        var culture = CultureInfo.CurrentCulture;
+        if (!culture.Name.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return local.ToString("f", culture);
+        }
+
+        return $"{local.ToString("MMMM", culture)} {local.Day}{OrdinalSuffix(local.Day)}, {local.ToString("yyyy h:mm tt", culture)}";
+    }
+
+    private static string OrdinalSuffix(int day)
+    {
+        if (day is 11 or 12 or 13)
+        {
+            return "th";
+        }
+
+        return (day % 10) switch
+        {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th"
+        };
+    }
 }

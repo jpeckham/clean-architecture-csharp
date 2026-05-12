@@ -13,34 +13,40 @@ public sealed class CreatePostPresenter : ICreatePostOutputBoundary
 public sealed class ScrollPostsPresenter : IScrollPostsOutputBoundary
 {
     public ScrollPostsViewModel? ViewModel { get; private set; }
-    public void Present(ScrollPostsResponse response) => ViewModel = new(response.Posts.Select(ToViewModel).ToArray());
-    private static PostSummaryViewModel ToViewModel(PostSummaryResponse p) => new(
-        p.Id,
-        p.AuthorHandle,
-        p.Content,
-        p.ParentPostId,
-        p.OriginalPostId,
-        p.LikeCount,
-        p.LikedByCurrentReader,
-        p.RepostCount,
-        p.RepostedByCurrentReader,
-        p.QuotedPost is null ? null : new(p.QuotedPost.Id, p.QuotedPost.AuthorHandle, p.QuotedPost.Content));
+    public void Present(ScrollPostsResponse response) => ViewModel = new(response.Posts.Select(PostPresenterMapping.ToViewModel).ToArray());
 }
 
 public sealed class SearchPostsPresenter : ISearchPostsOutputBoundary
 {
     public SearchPostsViewModel? ViewModel { get; private set; }
-    public void Present(SearchPostsResponse response) => ViewModel = new(response.Posts.Select(p => new PostSummaryViewModel(
+    public void Present(SearchPostsResponse response) => ViewModel = new(response.Posts.Select(PostPresenterMapping.ToViewModel).ToArray());
+}
+
+internal static class PostPresenterMapping
+{
+    public static PostSummaryViewModel ToViewModel(PostSummaryResponse p) => new(
         p.Id,
         p.AuthorHandle,
         p.Content,
         p.ParentPostId,
         p.OriginalPostId,
+        p.CreatedAt,
         p.LikeCount,
         p.LikedByCurrentReader,
         p.RepostCount,
         p.RepostedByCurrentReader,
-        p.QuotedPost is null ? null : new(p.QuotedPost.Id, p.QuotedPost.AuthorHandle, p.QuotedPost.Content))).ToArray());
+        p.QuotedPost is null ? null : new(p.QuotedPost.Id, p.QuotedPost.AuthorHandle, p.QuotedPost.Content, p.QuotedPost.CreatedAt),
+        p.Media?.Select(m => new PostMediaSummaryViewModel(
+            m.AssetId,
+            m.Kind,
+            m.ContentType,
+            m.ByteLength,
+            m.Width,
+            m.Height,
+            m.DurationMs,
+            m.SortOrder,
+            m.ThumbnailKey,
+            m.AltText)).ToArray() ?? Array.Empty<PostMediaSummaryViewModel>());
 }
 
 public sealed class FollowUserPostsPresenter : IFollowUserPostsOutputBoundary
@@ -85,6 +91,20 @@ public sealed class DeletePostPresenter : IDeletePostOutputBoundary
     public void Present(DeletePostResponse response) => ViewModel = new(response.Succeeded, PostMessages.For(response.MessageKey));
 }
 
+public sealed class BeginPostMediaUploadPresenter : IBeginPostMediaUploadOutputBoundary
+{
+    public BeginPostMediaUploadViewModel? ViewModel { get; private set; }
+    public void Present(BeginPostMediaUploadResponse response) =>
+        ViewModel = new(response.Succeeded, PostMessages.For(response.MessageKey), response.Upload?.AssetId, response.Upload?.UploadUrl);
+}
+
+public sealed class CompletePostMediaUploadPresenter : ICompletePostMediaUploadOutputBoundary
+{
+    public CompletePostMediaUploadViewModel? ViewModel { get; private set; }
+    public void Present(CompletePostMediaUploadResponse response) =>
+        ViewModel = new(response.Succeeded, PostMessages.For(response.MessageKey), response.Media?.AssetId);
+}
+
 internal static class PostMessages
 {
     private static readonly IReadOnlyDictionary<string, string> Messages = new Dictionary<string, string>
@@ -103,7 +123,10 @@ internal static class PostMessages
         [PostMessageKeys.DuplicateRepostRejected] = "Users can repost a post only once.",
         [PostMessageKeys.RepostDeleted] = "Repost deleted.",
         [PostMessageKeys.RepostNotFound] = "Repost not found.",
-        [PostMessageKeys.PostDeleted] = "Post deleted."
+        [PostMessageKeys.PostDeleted] = "Post deleted.",
+        [PostMessageKeys.PostMediaUploadReserved] = "Post media upload reserved.",
+        [PostMessageKeys.PostMediaUploadCompleted] = "Post media upload completed.",
+        [PostMessageKeys.PostMediaAssetNotFound] = "Post media asset not found."
     };
 
     public static string For(string key) => Messages.TryGetValue(key, out var message) ? message : key;

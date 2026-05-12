@@ -9,6 +9,7 @@ public interface IPostGateway
     SocialPost? FindActiveRepost(Guid originalPostId, string authorHandle);
     int CountActiveReposts(Guid originalPostId);
     IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit);
+    IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit);
     void Follow(string readerHandle, string followedHandle);
     void Block(string readerHandle, string blockedHandle);
 }
@@ -16,6 +17,27 @@ public interface IPostGateway
 public interface IPostSearchGateway
 {
     IReadOnlyList<SocialPost> Search(string query);
+}
+
+public sealed record ReservePostMediaUpload(
+    string OwnerHandle,
+    PostMediaKind Kind,
+    string ContentType,
+    long ByteLength,
+    int? Width,
+    int? Height,
+    long? DurationMs,
+    string? ThumbnailKey,
+    string? AltText);
+
+public sealed record CompleteReservedPostMediaUpload(Guid AssetId, string OwnerHandle);
+public sealed record PostMediaUploadReservation(Guid AssetId, string StorageKey, string UploadUrl);
+
+public interface IPostMediaStorageGateway
+{
+    PostMediaUploadReservation ReserveUpload(ReservePostMediaUpload upload);
+    PostMediaItem? CompleteUpload(CompleteReservedPostMediaUpload upload);
+    PostMediaItem? FindCompletedAsset(Guid assetId, string ownerHandle);
 }
 
 public sealed class InMemoryPostGateway : IPostGateway
@@ -62,6 +84,13 @@ public sealed class InMemoryPostGateway : IPostGateway
             .Take(limit)
             .ToArray();
     }
+
+    public IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit) =>
+        _posts.Where(p => !p.IsDeleted)
+            .Where(p => string.Equals(p.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(p => p.CreatedAt)
+            .Take(limit)
+            .ToArray();
 
     public void Follow(string readerHandle, string followedHandle) => SetFor(_follows, readerHandle).Add(followedHandle);
 

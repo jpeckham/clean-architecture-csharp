@@ -23,6 +23,9 @@ public static class SocialAppSliceEndpoints
         endpoints.MapPost("/api/password-reset-requests", RequestPasswordReset);
         endpoints.MapPost("/api/password-resets", ResetPassword);
         endpoints.MapGet("/api/users/{handle}", ViewUser);
+        endpoints.MapPost("/api/users/me/profile-image", UploadMyProfileImage);
+        endpoints.MapDelete("/api/users/me/profile-image", RemoveMyProfileImage);
+        endpoints.MapGet("/api/profile-images/{assetId:guid}", GetProfileImage);
         endpoints.MapPost("/api/posts", CreatePost);
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
         endpoints.MapPost("/api/posts/{postId:guid}/likes", AddLikeToPost);
@@ -174,13 +177,118 @@ public static class SocialAppSliceEndpoints
             : Results.BadRequest(presenter.ViewModel);
     }
 
-    private static IResult ViewUser(string handle, IUserGateway users)
+    private static IResult ViewUser(string handle, HttpRequest httpRequest, IUserGateway users, ISessionGateway sessions, IUserProfilePostGateway profilePosts)
     {
+        var token = ReadBearerToken(httpRequest);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return Results.Unauthorized();
+        }
+
+        var reader = sessions.FindByToken(token);
+        if (reader is null)
+        {
+            return Results.Unauthorized();
+        }
+
         var presenter = new ViewUserPresenter();
-        new ViewUserController(new ViewUserInteractor(users, presenter)).View(handle);
+        new ViewUserController(new ViewUserInteractor(users, profilePosts, presenter)).View(handle, reader.Handle);
         return presenter.ViewModel is { Succeeded: true }
             ? Results.Ok(presenter.ViewModel)
             : Results.NotFound(presenter.ViewModel);
+    }
+
+    private static async Task<IResult> UploadMyProfileImage(
+        HttpRequest httpRequest,
+        IUserGateway users,
+        ISessionGateway sessions,
+        IProfileImageStorageGateway profileImages,
+        IClock clock)
+    {
+        var user = ReadAuthenticatedUser(httpRequest, sessions);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!httpRequest.HasFormContentType)
+        {
+            return Results.BadRequest(new { succeeded = false, message = "Profile image upload must be multipart form data." });
+        }
+
+        var form = await httpRequest.ReadFormAsync();
+        var file = form.Files["image"];
+        if (file is null || file.Length == 0)
+        {
+            return Results.BadRequest(new { succeeded = false, message = "Profile image file is required." });
+        }
+
+        var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        var beginPresenter = new BeginProfileImageUploadPresenter();
+        try
+        {
+            new BeginProfileImageUploadController(new BeginProfileImageUploadInteractor(profileImages, beginPresenter))
+                .Begin(user.Handle, contentType, file.Length);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
+        }
+
+        var assetId = beginPresenter.ViewModel!.AssetId!.Value;
+        await using (var stream = file.OpenReadStream())
+        using (var buffer = new MemoryStream())
+        {
+            await stream.CopyToAsync(buffer);
+            profileImages.StoreUpload(assetId, buffer.ToArray());
+        }
+
+        var previousImage = user.ProfileImage;
+        var completePresenter = new CompleteProfileImageUploadPresenter();
+        new CompleteProfileImageUploadController(new CompleteProfileImageUploadInteractor(users, profileImages, clock, completePresenter))
+            .Complete(user.Handle, user.Handle, assetId, null, null);
+
+        if (previousImage is not null)
+        {
+            profileImages.Remove(previousImage.AssetId);
+        }
+
+        return completePresenter.ViewModel is { Succeeded: true }
+            ? Results.Ok(completePresenter.ViewModel)
+            : Results.BadRequest(completePresenter.ViewModel);
+    }
+
+    private static IResult RemoveMyProfileImage(
+        HttpRequest httpRequest,
+        IUserGateway users,
+        ISessionGateway sessions,
+        IProfileImageStorageGateway profileImages)
+    {
+        var user = ReadAuthenticatedUser(httpRequest, sessions);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var previousImage = user.ProfileImage;
+        var presenter = new RemoveProfileImagePresenter();
+        new RemoveProfileImageController(new RemoveProfileImageInteractor(users, presenter)).Remove(user.Handle, user.Handle);
+        if (previousImage is not null)
+        {
+            profileImages.Remove(previousImage.AssetId);
+        }
+
+        return presenter.ViewModel is { Succeeded: true }
+            ? Results.Ok(presenter.ViewModel)
+            : Results.NotFound(presenter.ViewModel);
+    }
+
+    private static IResult GetProfileImage(Guid assetId, IProfileImageStorageGateway profileImages)
+    {
+        var image = profileImages.FindStored(assetId);
+        return image is null
+            ? Results.NotFound()
+            : Results.File(image.Content, image.ContentType);
     }
 
     private static IResult CreatePost(CreatePostHttpRequest request, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
@@ -381,19 +489,37 @@ public static class SocialAppSliceEndpoints
         return Results.Ok(presenter.ViewModel);
     }
 
-    private static IResult RecentPosts(string readerHandle, int? limit, IPostGateway posts)
+    private static IResult RecentPosts(HttpRequest httpRequest, int? limit, ISessionGateway sessions, IPostGateway posts)
     {
+        var reader = ReadAuthenticatedUser(httpRequest, sessions);
+        if (reader is null)
+        {
+            return Results.Unauthorized();
+        }
+
         var presenter = new ScrollPostsPresenter();
         var controller = new ScrollPostsController(new ScrollPostsInteractor(posts, presenter));
-        controller.Scroll(readerHandle, Math.Clamp(limit ?? 20, 1, 100));
+        controller.Scroll(reader.Handle, Math.Clamp(limit ?? 20, 1, 100));
         return Results.Ok(presenter.ViewModel);
     }
 
-    private static IResult SearchPosts(string readerHandle, string query, IPostGateway posts, IPostSearchGateway search)
+    private static IResult SearchPosts(HttpRequest httpRequest, string query, ISessionGateway sessions, IPostGateway posts, IPostSearchGateway search)
     {
+        var reader = ReadAuthenticatedUser(httpRequest, sessions);
+        if (reader is null)
+        {
+            return Results.Unauthorized();
+        }
+
         var presenter = new SearchPostsPresenter();
-        new SearchPostsInteractor(search, presenter, posts).Handle(new(query, readerHandle));
+        new SearchPostsInteractor(search, presenter, posts).Handle(new(query, reader.Handle));
         return Results.Ok(presenter.ViewModel);
+    }
+
+    private static SocialApp.User.Entities.UserAccount? ReadAuthenticatedUser(HttpRequest request, ISessionGateway sessions)
+    {
+        var token = ReadBearerToken(request);
+        return string.IsNullOrWhiteSpace(token) ? null : sessions.FindByToken(token);
     }
 
     private static string? ReadBearerToken(HttpRequest request)

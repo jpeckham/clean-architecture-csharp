@@ -11,11 +11,38 @@ public static class CosmosMongoMappers
         DisplayName = user.DisplayName,
         Handle = user.Handle,
         Email = user.Email,
-        PasswordHash = user.PasswordHash
+        PasswordHash = user.PasswordHash,
+        ProfileImage = user.ProfileImage is null
+            ? null
+            : new ProfileImageDocument
+            {
+                AssetId = user.ProfileImage.AssetId,
+                StorageKey = user.ProfileImage.StorageKey,
+                ContentType = user.ProfileImage.ContentType,
+                ByteLength = user.ProfileImage.ByteLength,
+                Width = user.ProfileImage.Width,
+                Height = user.ProfileImage.Height,
+                UploadedAt = user.ProfileImage.UploadedAt
+            }
     };
 
     public static UserAccount ToEntity(UserDocument document) =>
-        UserAccount.Rehydrate(document.Id, document.DisplayName, document.Handle, document.Email, document.PasswordHash);
+        UserAccount.Rehydrate(
+            document.Id,
+            document.DisplayName,
+            document.Handle,
+            document.Email,
+            document.PasswordHash,
+            document.ProfileImage is null
+                ? null
+                : new ProfileImage(
+                    document.ProfileImage.AssetId,
+                    document.ProfileImage.StorageKey,
+                    document.ProfileImage.ContentType,
+                    document.ProfileImage.ByteLength,
+                    document.ProfileImage.Width,
+                    document.ProfileImage.Height,
+                    document.ProfileImage.UploadedAt));
 
     public static PostDocument ToDocument(SocialPost post) => new()
     {

@@ -25,6 +25,101 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void Post_entity_allows_media_only_posts_and_exposes_media_metadata()
+    {
+        var media = new[]
+        {
+            new PostMediaItem(
+                Guid.NewGuid(),
+                PostMediaKind.Image,
+                "post-media/ada/one.jpg",
+                "image/jpeg",
+                123_456,
+                800,
+                600,
+                null,
+                0,
+                "post-media/ada/one-thumb.jpg",
+                "A diagram")
+        };
+
+        var post = SocialPost.Create("@ada", " ", media);
+
+        post.Content.Should().BeEmpty();
+        post.Media.Should().ContainSingle().Which.Should().Be(media[0]);
+    }
+
+    [Fact]
+    public void Post_entity_enforces_starter_media_policy()
+    {
+        var images = Enumerable.Range(0, 5)
+            .Select(index => new PostMediaItem(
+                Guid.NewGuid(),
+                PostMediaKind.Image,
+                $"post-media/ada/{index}.jpg",
+                "image/jpeg",
+                123_456,
+                800,
+                600,
+                null,
+                index,
+                null,
+                null))
+            .ToArray();
+        var video = new PostMediaItem(
+            Guid.NewGuid(),
+            PostMediaKind.Video,
+            "post-media/ada/video.mp4",
+            "video/mp4",
+            1_234_567,
+            1920,
+            1080,
+            30_000,
+            0,
+            "post-media/ada/video-poster.jpg",
+            null);
+
+        Action tooManyImages = () => SocialPost.Create("@ada", "photos", images);
+        Action mixedVideoAndImages = () => SocialPost.Create("@ada", "media", new[] { images[0], video });
+
+        tooManyImages.Should().Throw<ArgumentException>().WithMessage("*at most 4 images*");
+        mixedVideoAndImages.Should().Throw<ArgumentException>().WithMessage("*mixing video and images*");
+    }
+
+    [Fact]
+    public void Post_rehydration_preserves_media_metadata()
+    {
+        var media = new[]
+        {
+            new PostMediaItem(
+                Guid.NewGuid(),
+                PostMediaKind.Image,
+                "post-media/ada/one.jpg",
+                "image/jpeg",
+                123_456,
+                800,
+                600,
+                null,
+                0,
+                null,
+                null)
+        };
+
+        var post = SocialPost.Rehydrate(
+            Guid.NewGuid(),
+            "@ada",
+            string.Empty,
+            null,
+            null,
+            DateTimeOffset.UtcNow,
+            false,
+            Array.Empty<string>(),
+            media);
+
+        post.Media.Should().ContainSingle().Which.Should().Be(media[0]);
+    }
+
+    [Fact]
     public void Post_can_be_rehydrated_from_persistence()
     {
         var id = Guid.NewGuid();
@@ -50,6 +145,83 @@ public sealed class PostComponentTests
         presenter.ViewModel.Should().NotBeNull();
         presenter.ViewModel!.Succeeded.Should().BeTrue();
         posts.AllPosts.Should().ContainSingle(p => p.AuthorHandle == "@ada");
+    }
+
+    [Fact]
+    public void Post_media_upload_flow_reserves_and_completes_owned_assets()
+    {
+        var media = new InMemoryPostMediaStorageGateway();
+        var beginOutput = new CapturingBeginPostMediaUploadOutput();
+        var completeOutput = new CapturingCompletePostMediaUploadOutput();
+
+        new BeginPostMediaUploadInteractor(media, beginOutput)
+            .Handle(new("@ada", PostMediaKind.Image, "image/jpeg", 123_456, 800, 600, null, "diagram"));
+
+        beginOutput.Response.Should().NotBeNull();
+        beginOutput.Response!.Succeeded.Should().BeTrue();
+        beginOutput.Response.Upload.Should().NotBeNull();
+        beginOutput.Response.Upload!.UploadUrl.Should().Contain(beginOutput.Response.Upload.AssetId.ToString());
+
+        new CompletePostMediaUploadInteractor(media, completeOutput)
+            .Handle(new(beginOutput.Response.Upload.AssetId, "@ada"));
+
+        completeOutput.Response.Should().NotBeNull();
+        completeOutput.Response!.Succeeded.Should().BeTrue();
+        completeOutput.Response.Media.Should().NotBeNull();
+        completeOutput.Response.Media!.AssetId.Should().Be(beginOutput.Response.Upload.AssetId);
+        completeOutput.Response.Media.AltText.Should().Be("diagram");
+    }
+
+    [Fact]
+    public void Create_post_with_media_requires_completed_assets_owned_by_author_and_projects_media()
+    {
+        var posts = new InMemoryPostGateway();
+        var media = new InMemoryPostMediaStorageGateway();
+        var reserved = media.ReserveUpload(new("@ada", PostMediaKind.Image, "image/jpeg", 123_456, 800, 600, null, null, "diagram"));
+        media.CompleteUpload(new(reserved.AssetId, "@ada"));
+        var presenter = new CreatePostPresenter();
+        var controller = new CreatePostController(new CreatePostInteractor(posts, presenter, media));
+
+        controller.Create("@ada", "Media post", new[] { reserved.AssetId });
+
+        presenter.ViewModel!.Succeeded.Should().BeTrue();
+        var created = posts.AllPosts.Should().ContainSingle().Subject;
+        created.Media.Should().ContainSingle().Which.AssetId.Should().Be(reserved.AssetId);
+        CreatePostInteractor.ToSummary(created).Media.Should().ContainSingle(m => m.AssetId == reserved.AssetId);
+    }
+
+    [Fact]
+    public void Create_post_rejects_media_assets_that_are_not_completed_or_owned_by_author()
+    {
+        var posts = new InMemoryPostGateway();
+        var media = new InMemoryPostMediaStorageGateway();
+        var pending = media.ReserveUpload(new("@ada", PostMediaKind.Image, "image/jpeg", 123_456, 800, 600, null, null, null));
+        var ownedByGrace = media.ReserveUpload(new("@grace", PostMediaKind.Image, "image/jpeg", 123_456, 800, 600, null, null, null));
+        media.CompleteUpload(new(ownedByGrace.AssetId, "@grace"));
+        var controller = new CreatePostController(new CreatePostInteractor(posts, new CreatePostPresenter(), media));
+
+        Action pendingCreate = () => controller.Create("@ada", "pending", new[] { pending.AssetId });
+        Action wrongOwnerCreate = () => controller.Create("@ada", "wrong owner", new[] { ownedByGrace.AssetId });
+
+        pendingCreate.Should().Throw<InvalidOperationException>().WithMessage("Media asset must be completed and owned by the post author.");
+        wrongOwnerCreate.Should().Throw<InvalidOperationException>().WithMessage("Media asset must be completed and owned by the post author.");
+        posts.AllPosts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Feed_and_search_return_empty_media_lists_for_text_only_posts()
+    {
+        var posts = new InMemoryPostGateway();
+        var search = new InMemoryPostSearchGateway(posts);
+        posts.Save(SocialPost.Create("@ada", "plain text"));
+
+        var feedOutput = new CapturingScrollPostsOutput();
+        new ScrollPostsInteractor(posts, feedOutput).Handle(new("@reader", 10));
+        var searchOutput = new CapturingSearchPostsOutput();
+        new SearchPostsInteractor(search, searchOutput).Handle(new("plain"));
+
+        feedOutput.Response!.Posts.Should().ContainSingle().Which.Media.Should().BeEmpty();
+        searchOutput.Response!.Posts.Should().ContainSingle().Which.Media.Should().BeEmpty();
     }
 
     [Fact]
@@ -237,15 +409,19 @@ public sealed class PostComponentTests
         new ScrollPostsController(new ScrollPostsInteractor(posts, presenter)).Scroll("@grace", 10);
 
         var originalView = presenter.ViewModel!.Posts.Single(p => p.Id == original.Id);
+        originalView.CreatedAt.Should().Be(original.CreatedAt);
         originalView.RepostCount.Should().Be(2);
         originalView.RepostedByCurrentReader.Should().BeTrue();
 
         var repostView = presenter.ViewModel.Posts.Single(p => p.AuthorHandle == "@grace");
+        var repost = posts.FindById(repostView.Id)!;
         repostView.Content.Should().Be("Grace take");
+        repostView.CreatedAt.Should().Be(repost.CreatedAt);
         repostView.OriginalPostId.Should().Be(original.Id);
         repostView.QuotedPost.Should().NotBeNull();
         repostView.QuotedPost!.AuthorHandle.Should().Be("@ada");
         repostView.QuotedPost.Content.Should().Be("root");
+        repostView.QuotedPost.CreatedAt.Should().Be(original.CreatedAt);
         repostView.RepostCount.Should().Be(2);
         repostView.RepostedByCurrentReader.Should().BeTrue();
     }
@@ -293,6 +469,9 @@ public sealed class PostComponentTests
         public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit) =>
             inner.ScrollFor(readerHandle, limit);
 
+        public IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit) =>
+            inner.RecentByAuthor(authorHandle, limit);
+
         public void Follow(string readerHandle, string followedHandle) =>
             inner.Follow(readerHandle, followedHandle);
 
@@ -313,5 +492,89 @@ public sealed class PostComponentTests
         public CreatePostResponse? Response { get; private set; }
 
         public void Present(CreatePostResponse response) => Response = response;
+    }
+
+    private sealed class CapturingBeginPostMediaUploadOutput : IBeginPostMediaUploadOutputBoundary
+    {
+        public BeginPostMediaUploadResponse? Response { get; private set; }
+
+        public void Present(BeginPostMediaUploadResponse response) => Response = response;
+    }
+
+    private sealed class CapturingCompletePostMediaUploadOutput : ICompletePostMediaUploadOutputBoundary
+    {
+        public CompletePostMediaUploadResponse? Response { get; private set; }
+
+        public void Present(CompletePostMediaUploadResponse response) => Response = response;
+    }
+
+    private sealed class CapturingScrollPostsOutput : IScrollPostsOutputBoundary
+    {
+        public ScrollPostsResponse? Response { get; private set; }
+
+        public void Present(ScrollPostsResponse response) => Response = response;
+    }
+
+    private sealed class CapturingSearchPostsOutput : ISearchPostsOutputBoundary
+    {
+        public SearchPostsResponse? Response { get; private set; }
+
+        public void Present(SearchPostsResponse response) => Response = response;
+    }
+
+    private sealed class InMemoryPostMediaStorageGateway : IPostMediaStorageGateway
+    {
+        private readonly Dictionary<Guid, PendingPostMedia> pending = new();
+        private readonly Dictionary<Guid, PostMediaItem> completed = new();
+        private readonly Dictionary<Guid, string> completedOwners = new();
+
+        public PostMediaUploadReservation ReserveUpload(ReservePostMediaUpload upload)
+        {
+            var assetId = Guid.NewGuid();
+            var storageKey = $"post-media/{upload.OwnerHandle.TrimStart('@')}/{assetId}";
+            pending[assetId] = new PendingPostMedia(upload, storageKey);
+            return new(assetId, storageKey, $"https://uploads.test/{assetId}");
+        }
+
+        public PostMediaItem? CompleteUpload(CompleteReservedPostMediaUpload upload)
+        {
+            if (!pending.TryGetValue(upload.AssetId, out var pendingMedia) ||
+                !string.Equals(pendingMedia.Upload.OwnerHandle, upload.OwnerHandle, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var item = new PostMediaItem(
+                upload.AssetId,
+                pendingMedia.Upload.Kind,
+                pendingMedia.StorageKey,
+                pendingMedia.Upload.ContentType,
+                pendingMedia.Upload.ByteLength,
+                pendingMedia.Upload.Width,
+                pendingMedia.Upload.Height,
+                pendingMedia.Upload.DurationMs,
+                0,
+                pendingMedia.Upload.ThumbnailKey,
+                pendingMedia.Upload.AltText);
+            completed[upload.AssetId] = item;
+            completedOwners[upload.AssetId] = pendingMedia.Upload.OwnerHandle;
+            pending.Remove(upload.AssetId);
+            return item;
+        }
+
+        public PostMediaItem? FindCompletedAsset(Guid assetId, string ownerHandle)
+        {
+            if (!completed.TryGetValue(assetId, out var item))
+            {
+                return null;
+            }
+
+            return completedOwners.TryGetValue(assetId, out var completedOwner) &&
+                completedOwner.Equals(ownerHandle, StringComparison.OrdinalIgnoreCase)
+                ? item
+                : null;
+        }
+
+        private sealed record PendingPostMedia(ReservePostMediaUpload Upload, string StorageKey);
     }
 }

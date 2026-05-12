@@ -32,12 +32,14 @@ public sealed class SocialAppApiSliceTests
             p.Id == created.Id &&
             p.LikeCount == 1 &&
             p.LikedByCurrentReader);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
         var adaFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@ada&limit=20");
         adaFeed!.Posts.Should().ContainSingle(p =>
             p.Id == created.Id &&
             p.LikeCount == 1 &&
             !p.LikedByCurrentReader);
 
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
         var unlikeResponse = await client.DeleteAsync($"/api/posts/{created.Id}/likes");
 
         unlikeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -143,6 +145,7 @@ public sealed class SocialAppApiSliceTests
         var unlikeResponse = await client.DeleteAsync($"/api/posts/{created.Id}/likes");
 
         unlikeResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
         var graceFeed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@grace&limit=20");
         graceFeed!.Posts.Should().ContainSingle(p =>
             p.Id == created.Id &&
@@ -183,7 +186,7 @@ public sealed class SocialAppApiSliceTests
         client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
         await client.PostAsync($"/api/posts/{compilerPost!.Id}/likes", null);
 
-        var result = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/search?readerHandle=@grace&query=compiler");
+        var result = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/search?readerHandle=@ada&query=compiler");
 
         result!.Posts.Should().ContainSingle(p =>
             p.Id == compilerPost.Id &&
@@ -194,19 +197,70 @@ public sealed class SocialAppApiSliceTests
     }
 
     [Fact]
-    public async Task View_user_returns_display_name_and_handle()
+    public async Task View_user_returns_display_name_handle_and_recent_posts_for_authenticated_reader()
     {
         await using var factory = CreateInMemoryFactory();
         var client = factory.CreateClient();
-        await CreateAccountAsync(client, "@ada", "ada@example.com", "Ada Lovelace");
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com", "Ada Lovelace");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com", "Grace Hopper");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var adaPostResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Ada profile post" });
+        var adaPost = await adaPostResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+        await client.PostAsJsonAsync("/api/posts", new { content = "Ada second profile post" });
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        await client.PostAsJsonAsync("/api/posts", new { content = "Grace profile post" });
+        await client.PostAsync($"/api/posts/{adaPost!.Id}/likes", null);
 
         var result = await client.GetFromJsonAsync<UserProfileResult>("/api/users/%40ada");
         var missingResponse = await client.GetAsync("/api/users/%40missing");
+        client.DefaultRequestHeaders.Authorization = null;
+        var unauthenticatedResponse = await client.GetAsync("/api/users/%40ada");
 
         result!.Succeeded.Should().BeTrue();
         result.DisplayName.Should().Be("Ada Lovelace");
         result.Handle.Should().Be("@ada");
+        result.Posts.Should().HaveCount(2);
+        result.Posts.Should().OnlyContain(p => p.AuthorHandle == "@ada");
+        result.Posts.Should().Contain(p =>
+            p.Id == adaPost.Id &&
+            p.Content == "Ada profile post" &&
+            p.LikeCount == 1 &&
+            p.LikedByCurrentReader);
         missingResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        unauthenticatedResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Authenticated_user_can_upload_and_remove_their_own_profile_image()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com", "Ada Lovelace");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        using var imageContent = new MultipartFormDataContent();
+        imageContent.Add(new ByteArrayContent(new byte[] { 1, 2, 3, 4 }), "image", "avatar.jpg");
+        imageContent.Last().Headers.ContentType = new("image/jpeg");
+
+        var uploadResponse = await client.PostAsync("/api/users/me/profile-image", imageContent);
+
+        uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var uploadResult = await uploadResponse.Content.ReadFromJsonAsync<ProfileImageResult>();
+        uploadResult!.Succeeded.Should().BeTrue();
+        uploadResult.ProfileImage.Should().NotBeNull();
+        uploadResult.ProfileImage!.ContentType.Should().Be("image/jpeg");
+
+        var profile = await client.GetFromJsonAsync<UserProfileResult>("/api/users/%40ada");
+        profile!.ProfileImage.Should().NotBeNull();
+        profile.ProfileImage!.ImageUrl.Should().Be($"/api/profile-images/{uploadResult.ProfileImage.AssetId}");
+
+        var imageResponse = await client.GetAsync(profile.ProfileImage.ImageUrl);
+        imageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        imageResponse.Content.Headers.ContentType!.MediaType.Should().Be("image/jpeg");
+
+        var removeResponse = await client.DeleteAsync("/api/users/me/profile-image");
+        removeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        profile = await client.GetFromJsonAsync<UserProfileResult>("/api/users/%40ada");
+        profile!.ProfileImage.Should().BeNull();
     }
 
     [Fact]
@@ -335,10 +389,12 @@ public sealed class SocialAppApiSliceTests
                 services.RemoveAll<ISessionGateway>();
                 services.RemoveAll<IPostGateway>();
                 services.RemoveAll<IPostSearchGateway>();
+                services.RemoveAll<IProfileImageStorageGateway>();
                 services.AddSingleton<IUserGateway, InMemoryUserGateway>();
                 services.AddSingleton<ISessionGateway, InMemorySessionGateway>();
                 services.AddSingleton<IPostGateway, InMemoryPostGateway>();
                 services.AddSingleton<IPostSearchGateway, InMemoryPostSearchGateway>();
+                services.AddSingleton<IProfileImageStorageGateway, InMemoryProfileImageStorageGateway>();
             }));
 
     private static async Task<AuthResult> CreateAccountAsync(HttpClient client, string handle, string email, string? displayName = null)
@@ -360,7 +416,9 @@ public sealed class SocialAppApiSliceTests
     private sealed record SimpleResult(bool Succeeded, string Message);
     private sealed record DevEmailsResult(IReadOnlyList<DevEmailResult> Emails);
     private sealed record DevEmailResult(string To, string Subject, string Body);
-    private sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName);
+    private sealed record ProfileImageResult(bool Succeeded, string Message, ProfileImageSummaryResult? ProfileImage);
+    private sealed record ProfileImageSummaryResult(Guid AssetId, string ContentType, long ByteLength, int? Width, int? Height, string ImageUrl);
+    private sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
     private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
     private sealed record PostSummaryResult(

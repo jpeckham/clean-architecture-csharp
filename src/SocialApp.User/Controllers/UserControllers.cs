@@ -60,5 +60,21 @@ public sealed class SearchUserController(ISearchUserInputBoundary input)
 
 public sealed class ViewUserController(IViewUserInputBoundary input)
 {
-    public void View(string handle) => input.Handle(new(handle));
+    public void View(string handle, string readerHandle, int recentPostLimit = 20) => input.Handle(new(handle, readerHandle, recentPostLimit));
+}
+
+public sealed class BeginProfileImageUploadController(IBeginProfileImageUploadInputBoundary input)
+{
+    public void Begin(string ownerHandle, string contentType, long byteLength) => input.Handle(new(ownerHandle, contentType, byteLength));
+}
+
+public sealed class CompleteProfileImageUploadController(ICompleteProfileImageUploadInputBoundary input)
+{
+    public void Complete(string currentUserHandle, string profileHandle, Guid assetId, int? width, int? height) =>
+        input.Handle(new(currentUserHandle, profileHandle, assetId, width, height));
+}
+
+public sealed class RemoveProfileImageController(IRemoveProfileImageInputBoundary input)
+{
+    public void Remove(string currentUserHandle, string profileHandle) => input.Handle(new(currentUserHandle, profileHandle));
 }

@@ -47,6 +47,14 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
             .ToArray();
     }
 
+    public IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit) =>
+        _posts.Find(p => !p.IsDeleted).ToList()
+            .Where(p => string.Equals(p.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(p => p.CreatedAt)
+            .Take(limit)
+            .Select(CosmosMongoMappers.ToEntity)
+            .ToArray();
+
     public IReadOnlyList<SocialPost> Search(string query)
     {
         var allPosts = _posts.Find(p => !p.IsDeleted).ToList();

@@ -11,6 +11,13 @@ public sealed class CosmosMongoUserGateway(CosmosMongoCollections collections) :
 
     public void Save(UserAccount user)
     {
+        var existingById = _users.Find(u => u.Id == user.Id).FirstOrDefault();
+        if (existingById is not null)
+        {
+            _users.ReplaceOne(u => u.Id == user.Id, CosmosMongoMappers.ToDocument(user));
+            return;
+        }
+
         if (FindByHandle(user.Handle) is not null)
         {
             throw new InvalidOperationException("Handle is already registered.");

@@ -31,6 +31,9 @@ else
     builder.Services.AddSingleton<IPasswordResetTokenGateway, InMemoryPasswordResetTokenGateway>();
 }
 
+builder.Services.AddSingleton<IUserProfilePostGateway, UserProfilePostGatewayAdapter>();
+builder.Services.AddSingleton<IProfileImageStorageGateway, InMemoryProfileImageStorageGateway>();
+
 if (!string.IsNullOrWhiteSpace(builder.Configuration["AcsEmail:ConnectionString"]))
 {
     builder.Services.AddAcsEmailInfrastructure(builder.Configuration);

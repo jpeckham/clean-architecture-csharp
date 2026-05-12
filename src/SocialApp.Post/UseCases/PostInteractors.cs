@@ -5,9 +5,14 @@ using SocialApp.Post.ResponseModels;
 
 namespace SocialApp.Post.UseCases;
 
-public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBoundary output) : ICreatePostInputBoundary
+public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBoundary output, IPostMediaStorageGateway? mediaStorage = null) : ICreatePostInputBoundary
 {
-    public void Handle(CreatePostRequest request) => output.Present(new(true, PostMessageKeys.PostCreated, ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content)))));
+    public void Handle(CreatePostRequest request)
+    {
+        var media = ResolveMedia(request);
+        output.Present(new(true, PostMessageKeys.PostCreated, ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content, media)))));
+    }
+
     public static PostSummaryResponse ToSummary(SocialPost post, string? readerHandle = null) =>
         ToSummary(post, null, readerHandle);
 
@@ -25,11 +30,96 @@ public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBo
             post.Content,
             post.ParentPostId,
             post.OriginalPostId,
+            post.CreatedAt,
             post.LikedBy.Count,
             readerHandle is not null && post.LikedBy.Contains(readerHandle),
             posts?.CountActiveReposts(repostTargetId) ?? 0,
             readerHandle is not null && posts?.FindActiveRepost(repostTargetId, readerHandle) is not null,
-            originalPost is null ? null : new(originalPost.Id, originalPost.AuthorHandle, originalPost.Content));
+            originalPost is null ? null : new(originalPost.Id, originalPost.AuthorHandle, originalPost.Content, originalPost.CreatedAt),
+            post.Media.Select(ToMediaSummary).ToArray());
+    }
+
+    public static PostMediaSummaryResponse ToMediaSummary(PostMediaItem item) => new(
+        item.AssetId,
+        item.Kind.ToString(),
+        item.ContentType,
+        item.ByteLength,
+        item.Width,
+        item.Height,
+        item.DurationMs,
+        item.SortOrder,
+        item.ThumbnailKey,
+        item.AltText);
+
+    private IReadOnlyList<PostMediaItem> ResolveMedia(CreatePostRequest request)
+    {
+        if (request.MediaAssetIds is null || request.MediaAssetIds.Count == 0)
+        {
+            return Array.Empty<PostMediaItem>();
+        }
+
+        if (mediaStorage is null)
+        {
+            throw new InvalidOperationException("Media asset must be completed and owned by the post author.");
+        }
+
+        var media = new List<PostMediaItem>();
+        for (var index = 0; index < request.MediaAssetIds.Count; index++)
+        {
+            var item = mediaStorage.FindCompletedAsset(request.MediaAssetIds[index], request.AuthorHandle);
+            if (item is null)
+            {
+                throw new InvalidOperationException("Media asset must be completed and owned by the post author.");
+            }
+
+            media.Add(new PostMediaItem(
+                item.AssetId,
+                item.Kind,
+                item.StorageKey,
+                item.ContentType,
+                item.ByteLength,
+                item.Width,
+                item.Height,
+                item.DurationMs,
+                index,
+                item.ThumbnailKey,
+                item.AltText));
+        }
+
+        return media;
+    }
+}
+
+public sealed class BeginPostMediaUploadInteractor(IPostMediaStorageGateway media, IBeginPostMediaUploadOutputBoundary output) : IBeginPostMediaUploadInputBoundary
+{
+    public void Handle(BeginPostMediaUploadRequest request)
+    {
+        var upload = media.ReserveUpload(new(
+            request.OwnerHandle,
+            request.Kind,
+            request.ContentType,
+            request.ByteLength,
+            request.Width,
+            request.Height,
+            request.DurationMs,
+            null,
+            request.AltText));
+
+        output.Present(new(
+            true,
+            PostMessageKeys.PostMediaUploadReserved,
+            new(upload.AssetId, upload.StorageKey, upload.UploadUrl)));
+    }
+}
+
+public sealed class CompletePostMediaUploadInteractor(IPostMediaStorageGateway media, ICompletePostMediaUploadOutputBoundary output) : ICompletePostMediaUploadInputBoundary
+{
+    public void Handle(CompletePostMediaUploadRequest request)
+    {
+        var item = media.CompleteUpload(new(request.AssetId, request.OwnerHandle));
+        output.Present(item is null
+            ? new(false, PostMessageKeys.PostMediaAssetNotFound, null)
+            : new(true, PostMessageKeys.PostMediaUploadCompleted, CreatePostInteractor.ToMediaSummary(item)));
     }
 }
 

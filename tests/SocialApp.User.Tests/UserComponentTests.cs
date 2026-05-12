@@ -65,6 +65,142 @@ public sealed class UserComponentTests
     }
 
     [Fact]
+    public void User_account_can_set_replace_and_remove_profile_image_metadata()
+    {
+        var account = UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        var firstImage = new ProfileImage(
+            Guid.NewGuid(),
+            "profile-images/ada/first.jpg",
+            "image/jpeg",
+            12_345,
+            800,
+            600,
+            new DateTimeOffset(2026, 5, 11, 21, 0, 0, TimeSpan.Zero));
+        var replacementImage = new ProfileImage(
+            Guid.NewGuid(),
+            "profile-images/ada/replacement.png",
+            "image/png",
+            23_456,
+            null,
+            null,
+            new DateTimeOffset(2026, 5, 11, 21, 5, 0, TimeSpan.Zero));
+
+        account.ProfileImage.Should().BeNull();
+
+        account.SetProfileImage(firstImage);
+        account.ProfileImage.Should().Be(firstImage);
+
+        account.SetProfileImage(replacementImage);
+        account.ProfileImage.Should().Be(replacementImage);
+
+        account.RemoveProfileImage();
+        account.ProfileImage.Should().BeNull();
+    }
+
+    [Fact]
+    public void User_account_rehydration_preserves_profile_image_metadata()
+    {
+        var profileImage = new ProfileImage(
+            Guid.NewGuid(),
+            "profile-images/ada/avatar.jpg",
+            "image/jpeg",
+            12_345,
+            800,
+            600,
+            new DateTimeOffset(2026, 5, 11, 21, 0, 0, TimeSpan.Zero));
+
+        var account = UserAccount.Rehydrate(
+            Guid.NewGuid(),
+            "Ada Lovelace",
+            "@ada",
+            "ada@example.com",
+            "Correct9!",
+            profileImage);
+
+        account.ProfileImage.Should().Be(profileImage);
+    }
+
+    [Fact]
+    public void Profile_image_upload_flow_reserves_and_completes_owned_image_assets()
+    {
+        var users = new InMemoryUserGateway();
+        users.Save(UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
+        var storage = new InMemoryProfileImageStorageGateway();
+
+        var beginPresenter = new BeginProfileImageUploadPresenter();
+        new BeginProfileImageUploadController(new BeginProfileImageUploadInteractor(storage, beginPresenter))
+            .Begin("@ada", "image/jpeg", 12_345);
+
+        beginPresenter.ViewModel!.Succeeded.Should().BeTrue();
+        beginPresenter.ViewModel.AssetId.Should().NotBe(Guid.Empty);
+        beginPresenter.ViewModel.UploadUrl.Should().NotBeNullOrWhiteSpace();
+
+        var completePresenter = new CompleteProfileImageUploadPresenter();
+        new CompleteProfileImageUploadController(new CompleteProfileImageUploadInteractor(users, storage, new MutableClock(new DateTimeOffset(2026, 5, 11, 22, 0, 0, TimeSpan.Zero)), completePresenter))
+            .Complete("@ada", "@ada", beginPresenter.ViewModel.AssetId!.Value, 800, 600);
+
+        completePresenter.ViewModel!.Succeeded.Should().BeTrue();
+        users.FindByHandle("@ada")!.ProfileImage.Should().NotBeNull();
+        users.FindByHandle("@ada")!.ProfileImage!.ContentType.Should().Be("image/jpeg");
+        users.FindByHandle("@ada")!.ProfileImage!.Width.Should().Be(800);
+    }
+
+    [Fact]
+    public void Profile_image_upload_rejects_non_image_content_types()
+    {
+        var storage = new InMemoryProfileImageStorageGateway();
+        var presenter = new BeginProfileImageUploadPresenter();
+
+        Action reserveVideo = () => new BeginProfileImageUploadController(new BeginProfileImageUploadInteractor(storage, presenter))
+            .Begin("@ada", "video/mp4", 12_345);
+
+        reserveVideo.Should().Throw<ArgumentException>().WithMessage("*image*");
+    }
+
+    [Fact]
+    public void Profile_image_completion_and_removal_require_the_current_owner()
+    {
+        var users = new InMemoryUserGateway();
+        users.Save(UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
+        users.Save(UserAccount.Create("Grace Hopper", "@grace", "grace@example.com", "NavyCode9!"));
+        var storage = new InMemoryProfileImageStorageGateway();
+        var beginPresenter = new BeginProfileImageUploadPresenter();
+        new BeginProfileImageUploadController(new BeginProfileImageUploadInteractor(storage, beginPresenter))
+            .Begin("@ada", "image/png", 10_000);
+
+        Action completeAsGrace = () => new CompleteProfileImageUploadController(new CompleteProfileImageUploadInteractor(users, storage, new MutableClock(DateTimeOffset.UtcNow), new CompleteProfileImageUploadPresenter()))
+            .Complete("@grace", "@ada", beginPresenter.ViewModel!.AssetId!.Value, null, null);
+
+        completeAsGrace.Should().Throw<InvalidOperationException>().WithMessage("*own profile image*");
+
+        var completePresenter = new CompleteProfileImageUploadPresenter();
+        new CompleteProfileImageUploadController(new CompleteProfileImageUploadInteractor(users, storage, new MutableClock(DateTimeOffset.UtcNow), completePresenter))
+            .Complete("@ada", "@ada", beginPresenter.ViewModel!.AssetId!.Value, null, null);
+        completePresenter.ViewModel!.Succeeded.Should().BeTrue();
+
+        Action removeAsGrace = () => new RemoveProfileImageController(new RemoveProfileImageInteractor(users, new RemoveProfileImagePresenter()))
+            .Remove("@grace", "@ada");
+
+        removeAsGrace.Should().Throw<InvalidOperationException>().WithMessage("*own profile image*");
+        users.FindByHandle("@ada")!.ProfileImage.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Remove_profile_image_clears_metadata_for_the_owner()
+    {
+        var users = new InMemoryUserGateway();
+        var account = UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        account.SetProfileImage(new ProfileImage(Guid.NewGuid(), "profile-images/ada/avatar.jpg", "image/jpeg", 12_345, 800, 600, DateTimeOffset.UtcNow));
+        users.Save(account);
+
+        var presenter = new RemoveProfileImagePresenter();
+        new RemoveProfileImageController(new RemoveProfileImageInteractor(users, presenter)).Remove("@ada", "@ada");
+
+        presenter.ViewModel!.Succeeded.Should().BeTrue();
+        users.FindByHandle("@ada")!.ProfileImage.Should().BeNull();
+    }
+
+    [Fact]
     public void Legacy_plaintext_passwords_can_still_verify_during_migration()
     {
         var account = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
@@ -284,14 +420,44 @@ public sealed class UserComponentTests
         var users = new InMemoryUserGateway();
         users.Save(UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
         users.Save(UserAccount.Create("Grace Hopper", "@grace", "grace@example.com", "NavyCode9!"));
+        var createdAt = new DateTimeOffset(2026, 5, 11, 20, 38, 0, TimeSpan.Zero);
 
         var searchPresenter = new SearchUserPresenter();
         new SearchUserController(new SearchUserInteractor(users, searchPresenter)).Search("gra");
         searchPresenter.ViewModel!.Users.Should().ContainSingle(u => u.Handle == "@grace");
 
         var viewPresenter = new ViewUserPresenter();
-        new ViewUserController(new ViewUserInteractor(users, viewPresenter)).View("@ada");
+        new ViewUserController(new ViewUserInteractor(users, new StubUserProfilePostGateway(createdAt), viewPresenter)).View("@ada", "@grace");
         viewPresenter.ViewModel!.DisplayName.Should().Be("Ada Lovelace");
+        viewPresenter.ViewModel.ProfileImage.Should().BeNull();
+        var post = viewPresenter.ViewModel.Posts.Should().ContainSingle().Subject;
+        post.CreatedAt.Should().Be(createdAt);
+        post.QuotedPost!.CreatedAt.Should().Be(createdAt.AddMinutes(-10));
+    }
+
+    [Fact]
+    public void View_user_includes_profile_image_metadata()
+    {
+        var users = new InMemoryUserGateway();
+        var account = UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        var assetId = Guid.NewGuid();
+        account.SetProfileImage(new ProfileImage(
+            assetId,
+            "profile-images/ada/avatar.jpg",
+            "image/jpeg",
+            12_345,
+            800,
+            600,
+            new DateTimeOffset(2026, 5, 11, 22, 0, 0, TimeSpan.Zero)));
+        users.Save(account);
+
+        var presenter = new ViewUserPresenter();
+        new ViewUserController(new ViewUserInteractor(users, new EmptyUserProfilePostGateway(), presenter)).View("@ada", "@ada");
+
+        presenter.ViewModel!.ProfileImage.Should().NotBeNull();
+        presenter.ViewModel.ProfileImage!.AssetId.Should().Be(assetId);
+        presenter.ViewModel.ProfileImage.ContentType.Should().Be("image/jpeg");
+        presenter.ViewModel.ProfileImage.Width.Should().Be(800);
     }
 
     private sealed class CapturingLoginOutput : ILoginOutputBoundary
@@ -299,5 +465,31 @@ public sealed class UserComponentTests
         public LoginResponse? Response { get; private set; }
 
         public void Present(LoginResponse response) => Response = response;
+    }
+
+    private sealed class EmptyUserProfilePostGateway : IUserProfilePostGateway
+    {
+        public IReadOnlyList<UserProfilePostSummary> RecentPostsByAuthor(string authorHandle, string readerHandle, int limit) =>
+            Array.Empty<UserProfilePostSummary>();
+    }
+
+    private sealed class StubUserProfilePostGateway(DateTimeOffset createdAt) : IUserProfilePostGateway
+    {
+        public IReadOnlyList<UserProfilePostSummary> RecentPostsByAuthor(string authorHandle, string readerHandle, int limit) =>
+            new[]
+            {
+                new UserProfilePostSummary(
+                    Guid.NewGuid(),
+                    authorHandle,
+                    "Profile post",
+                    null,
+                    Guid.NewGuid(),
+                    createdAt,
+                    1,
+                    true,
+                    2,
+                    false,
+                    new UserProfileQuotedPostSummary(Guid.NewGuid(), "@grace", "Quoted profile post", createdAt.AddMinutes(-10)))
+            };
     }
 }

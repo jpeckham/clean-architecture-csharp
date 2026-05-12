@@ -121,6 +121,15 @@ public sealed class CosmosMongoMappingTests
                 .Take(limit)
                 .ToArray();
 
+        public IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit) =>
+            _posts.Values
+                .Select(CosmosMongoMappers.ToEntity)
+                .Where(post => !post.IsDeleted)
+                .Where(post => string.Equals(post.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(post => post.CreatedAt)
+                .Take(limit)
+                .ToArray();
+
         public void Follow(string readerHandle, string followedHandle)
         {
         }

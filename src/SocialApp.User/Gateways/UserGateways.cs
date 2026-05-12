@@ -61,9 +61,41 @@ public interface IPasswordResetTokenGateway
     string? FindActiveToken(string email);
 }
 
+public interface IUserProfilePostGateway
+{
+    IReadOnlyList<UserProfilePostSummary> RecentPostsByAuthor(string authorHandle, string readerHandle, int limit);
+}
+
+public interface IProfileImageStorageGateway
+{
+    ProfileImageUploadReservation ReserveUpload(ReserveProfileImageUpload upload);
+    ReservedProfileImageUpload? CompleteUpload(CompleteReservedProfileImageUpload upload);
+    void StoreUpload(Guid assetId, byte[] content);
+    StoredProfileImage? FindStored(Guid assetId);
+    void Remove(Guid assetId);
+}
+
 public sealed record PendingRegistration(string DisplayName, string Handle, string Email, string PasswordHash);
 public sealed record SentEmail(string To, string Subject, string Body);
 public sealed record PasswordResetToken(string Email, DateTimeOffset ExpiresAt);
+public sealed record ReserveProfileImageUpload(string OwnerHandle, string ContentType, long ByteLength);
+public sealed record CompleteReservedProfileImageUpload(Guid AssetId, string OwnerHandle);
+public sealed record ProfileImageUploadReservation(Guid AssetId, string StorageKey, string UploadUrl);
+public sealed record ReservedProfileImageUpload(Guid AssetId, string OwnerHandle, string StorageKey, string ContentType, long ByteLength);
+public sealed record StoredProfileImage(string ContentType, byte[] Content);
+public sealed record UserProfileQuotedPostSummary(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record UserProfilePostSummary(
+    Guid Id,
+    string AuthorHandle,
+    string Content,
+    Guid? ParentPostId,
+    Guid? OriginalPostId,
+    DateTimeOffset CreatedAt,
+    int LikeCount,
+    bool LikedByCurrentReader,
+    int RepostCount,
+    bool RepostedByCurrentReader,
+    UserProfileQuotedPostSummary? QuotedPost);
 
 public sealed class SystemClock : IClock
 {
@@ -84,6 +116,13 @@ public sealed class InMemoryUserGateway : IUserGateway
 
     public void Save(UserAccount user)
     {
+        var existingIndex = _users.FindIndex(u => u.Id == user.Id);
+        if (existingIndex >= 0)
+        {
+            _users[existingIndex] = user;
+            return;
+        }
+
         if (_users.Any(u => string.Equals(u.Handle, user.Handle, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("Handle is already registered.");
@@ -219,4 +258,81 @@ public sealed class InMemoryPasswordResetTokenGateway(IClock clock) : IPasswordR
 
     public string? FindActiveToken(string email) =>
         _tokens.FirstOrDefault(pair => string.Equals(pair.Value.Email, email, StringComparison.OrdinalIgnoreCase) && pair.Value.ExpiresAt >= clock.UtcNow).Key;
+}
+
+public sealed class InMemoryProfileImageStorageGateway : IProfileImageStorageGateway
+{
+    private readonly Dictionary<Guid, ReservedProfileImageUpload> _pending = new();
+    private readonly Dictionary<Guid, ReservedProfileImageUpload> _completed = new();
+    private readonly Dictionary<Guid, byte[]> _content = new();
+
+    public ProfileImageUploadReservation ReserveUpload(ReserveProfileImageUpload upload)
+    {
+        if (string.IsNullOrWhiteSpace(upload.OwnerHandle))
+        {
+            throw new ArgumentException("Owner handle is required.", nameof(upload));
+        }
+
+        if (string.IsNullOrWhiteSpace(upload.ContentType) ||
+            !upload.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Profile image content type must be an image.", nameof(upload));
+        }
+
+        if (upload.ByteLength <= 0)
+        {
+            throw new ArgumentException("Byte length must be greater than zero.", nameof(upload));
+        }
+
+        var assetId = Guid.NewGuid();
+        var storageKey = $"profile-images/{upload.OwnerHandle.Trim().TrimStart('@')}/{assetId}";
+        _pending[assetId] = new ReservedProfileImageUpload(
+            assetId,
+            upload.OwnerHandle.Trim(),
+            storageKey,
+            upload.ContentType.Trim(),
+            upload.ByteLength);
+        return new(assetId, storageKey, $"profile-image://{assetId}");
+    }
+
+    public ReservedProfileImageUpload? CompleteUpload(CompleteReservedProfileImageUpload upload)
+    {
+        if (!_pending.TryGetValue(upload.AssetId, out var pending) ||
+            !string.Equals(pending.OwnerHandle, upload.OwnerHandle, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        _pending.Remove(upload.AssetId);
+        _completed[upload.AssetId] = pending;
+        return pending;
+    }
+
+    public void StoreUpload(Guid assetId, byte[] content)
+    {
+        if (content.Length == 0)
+        {
+            throw new ArgumentException("Profile image content is required.", nameof(content));
+        }
+
+        _content[assetId] = content.ToArray();
+    }
+
+    public StoredProfileImage? FindStored(Guid assetId)
+    {
+        if (!_completed.TryGetValue(assetId, out var completed) ||
+            !_content.TryGetValue(assetId, out var content))
+        {
+            return null;
+        }
+
+        return new(completed.ContentType, content.ToArray());
+    }
+
+    public void Remove(Guid assetId)
+    {
+        _pending.Remove(assetId);
+        _completed.Remove(assetId);
+        _content.Remove(assetId);
+    }
 }

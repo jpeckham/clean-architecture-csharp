@@ -6,13 +6,14 @@ public sealed class UserAccount
 {
     private string _passwordHash;
 
-    private UserAccount(Guid id, string displayName, string handle, string email, string passwordHash)
+    private UserAccount(Guid id, string displayName, string handle, string email, string passwordHash, ProfileImage? profileImage)
     {
         Id = id;
         DisplayName = displayName;
         Handle = handle;
         Email = email;
         _passwordHash = passwordHash;
+        ProfileImage = profileImage;
     }
 
     public Guid Id { get; }
@@ -20,6 +21,7 @@ public sealed class UserAccount
     public string Handle { get; }
     public string Email { get; }
     public string PasswordHash => _passwordHash;
+    public ProfileImage? ProfileImage { get; private set; }
 
     public static UserAccount Create(string displayName, string handle, string email, string password)
     {
@@ -39,10 +41,16 @@ public sealed class UserAccount
         }
 
         PasswordPolicy.Validate(password);
-        return new UserAccount(Guid.NewGuid(), displayName.Trim(), handle.Trim(), email.Trim(), PasswordHasher.Hash(password));
+        return new UserAccount(Guid.NewGuid(), displayName.Trim(), handle.Trim(), email.Trim(), PasswordHasher.Hash(password), null);
     }
 
-    public static UserAccount Rehydrate(Guid id, string displayName, string handle, string email, string passwordHash)
+    public static UserAccount Rehydrate(
+        Guid id,
+        string displayName,
+        string handle,
+        string email,
+        string passwordHash,
+        ProfileImage? profileImage = null)
     {
         if (id == Guid.Empty)
         {
@@ -69,7 +77,7 @@ public sealed class UserAccount
             throw new ArgumentException("Password hash is required.", nameof(passwordHash));
         }
 
-        return new UserAccount(id, displayName.Trim(), handle.Trim(), email.Trim(), passwordHash);
+        return new UserAccount(id, displayName.Trim(), handle.Trim(), email.Trim(), passwordHash, profileImage);
     }
 
     public static UserAccount CreateWithPasswordHash(string displayName, string handle, string email, string passwordHash)
@@ -83,6 +91,16 @@ public sealed class UserAccount
     {
         PasswordPolicy.Validate(password);
         _passwordHash = PasswordHasher.Hash(password);
+    }
+
+    public void SetProfileImage(ProfileImage profileImage)
+    {
+        ProfileImage = profileImage ?? throw new ArgumentNullException(nameof(profileImage));
+    }
+
+    public void RemoveProfileImage()
+    {
+        ProfileImage = null;
     }
 }
 

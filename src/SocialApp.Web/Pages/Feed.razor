@@ -1,5 +1,6 @@
 @page "/feed"
 @page "/feed/search"
+@using System.Globalization
 @inject SocialApp.Web.Services.SocialAppApiClient Api
 @inject SocialApp.Web.Services.AppSession Session
 @inject NavigationManager Navigation
@@ -50,7 +51,10 @@
                 {
                     <article class="post">
                         <div class="post-header">
-                            <a class="author-link" href="@UserUrl(item.AuthorHandle)">@item.AuthorHandle</a>
+                            <div class="post-author-line">
+                                <a class="author-link" href="@UserUrl(item.AuthorHandle)">@item.AuthorHandle</a>
+                                <time class="post-time" datetime="@item.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(item.CreatedAt)</time>
+                            </div>
                             @if (CanDelete(item))
                             {
                                 <button type="button" class="danger compact" @onclick="() => DeletePostAsync(item)" disabled="@isBusy">Delete</button>
@@ -59,7 +63,10 @@
                         @if (item.QuotedPost is not null)
                         {
                             <div class="quoted-post">
-                                <a class="author-link" href="@UserUrl(item.QuotedPost.AuthorHandle)">@item.QuotedPost.AuthorHandle</a>
+                                <div class="post-author-line">
+                                    <a class="author-link" href="@UserUrl(item.QuotedPost.AuthorHandle)">@item.QuotedPost.AuthorHandle</a>
+                                    <time class="post-time" datetime="@item.QuotedPost.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(item.QuotedPost.CreatedAt)</time>
+                                </div>
                                 <p>@item.QuotedPost.Content</p>
                             </div>
                         }
@@ -264,7 +271,7 @@
             return;
         }
 
-        var result = await Api.GetRecentPostsAsync(Session.Handle!);
+        var result = await Api.GetRecentPostsAsync(Session.SessionToken!);
         posts.Clear();
         posts.AddRange(result?.Posts ?? Array.Empty<SocialApp.Web.Services.PostSummaryResult>());
     }
@@ -304,7 +311,7 @@
 
     private async Task SearchCurrentQueryAsync()
     {
-        var result = await Api.SearchPostsAsync(Session.Handle!, search.Query);
+        var result = await Api.SearchPostsAsync(Session.SessionToken!, search.Query);
         posts.Clear();
         posts.AddRange(result?.Posts ?? Array.Empty<SocialApp.Web.Services.PostSummaryResult>());
     }
@@ -331,6 +338,34 @@
         string.Equals(item.AuthorHandle, Session.Handle, StringComparison.OrdinalIgnoreCase);
 
     private static string UserUrl(string handle) => $"/users/{Uri.EscapeDataString(handle)}";
+
+    private static string FormatTimestamp(DateTimeOffset createdAt)
+    {
+        var local = createdAt.ToLocalTime();
+        var culture = CultureInfo.CurrentCulture;
+        if (!culture.Name.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return local.ToString("f", culture);
+        }
+
+        return $"{local.ToString("MMMM", culture)} {local.Day}{OrdinalSuffix(local.Day)}, {local.ToString("yyyy h:mm tt", culture)}";
+    }
+
+    private static string OrdinalSuffix(int day)
+    {
+        if (day is 11 or 12 or 13)
+        {
+            return "th";
+        }
+
+        return (day % 10) switch
+        {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th"
+        };
+    }
 
     private bool IsOwnRepostTarget(SocialApp.Web.Services.PostSummaryResult item)
     {

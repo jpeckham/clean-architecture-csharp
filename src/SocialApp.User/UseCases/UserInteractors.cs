@@ -227,13 +227,130 @@ public sealed class SearchUserInteractor(IUserGateway users, ISearchUserOutputBo
     }
 }
 
-public sealed class ViewUserInteractor(IUserGateway users, IViewUserOutputBoundary output) : IViewUserInputBoundary
+public sealed class BeginProfileImageUploadInteractor(IProfileImageStorageGateway storage, IBeginProfileImageUploadOutputBoundary output) : IBeginProfileImageUploadInputBoundary
+{
+    public void Handle(BeginProfileImageUploadRequest request)
+    {
+        var reservation = storage.ReserveUpload(new(request.OwnerHandle, request.ContentType, request.ByteLength));
+        output.Present(new(
+            true,
+            UserMessageKeys.ProfileImageUploadReserved,
+            new(reservation.AssetId, reservation.StorageKey, reservation.UploadUrl)));
+    }
+}
+
+public sealed class CompleteProfileImageUploadInteractor(
+    IUserGateway users,
+    IProfileImageStorageGateway storage,
+    IClock clock,
+    ICompleteProfileImageUploadOutputBoundary output) : ICompleteProfileImageUploadInputBoundary
+{
+    public void Handle(CompleteProfileImageUploadRequest request)
+    {
+        EnsureOwnProfile(request.CurrentUserHandle, request.ProfileHandle);
+
+        var user = users.FindByHandle(request.ProfileHandle);
+        if (user is null)
+        {
+            output.Present(new(false, UserMessageKeys.UserNotFound, null));
+            return;
+        }
+
+        var upload = storage.CompleteUpload(new(request.AssetId, request.CurrentUserHandle));
+        if (upload is null)
+        {
+            output.Present(new(false, UserMessageKeys.ProfileImageUploadNotFound, null));
+            return;
+        }
+
+        var profileImage = new ProfileImage(
+            upload.AssetId,
+            upload.StorageKey,
+            upload.ContentType,
+            upload.ByteLength,
+            request.Width,
+            request.Height,
+            clock.UtcNow);
+        user.SetProfileImage(profileImage);
+        users.Save(user);
+        output.Present(new(true, UserMessageKeys.ProfileImageUploadCompleted, UserResponseMapping.ToProfileImageResponse(profileImage)));
+    }
+
+    private static void EnsureOwnProfile(string currentUserHandle, string profileHandle)
+    {
+        if (!string.Equals(currentUserHandle, profileHandle, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Users can edit only their own profile image.");
+        }
+    }
+}
+
+public sealed class RemoveProfileImageInteractor(IUserGateway users, IRemoveProfileImageOutputBoundary output) : IRemoveProfileImageInputBoundary
+{
+    public void Handle(RemoveProfileImageRequest request)
+    {
+        if (!string.Equals(request.CurrentUserHandle, request.ProfileHandle, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Users can edit only their own profile image.");
+        }
+
+        var user = users.FindByHandle(request.ProfileHandle);
+        if (user is null)
+        {
+            output.Present(new(false, UserMessageKeys.UserNotFound));
+            return;
+        }
+
+        user.RemoveProfileImage();
+        users.Save(user);
+        output.Present(new(true, UserMessageKeys.ProfileImageRemoved));
+    }
+}
+
+public sealed class ViewUserInteractor(IUserGateway users, IUserProfilePostGateway posts, IViewUserOutputBoundary output) : IViewUserInputBoundary
 {
     public void Handle(ViewUserRequest request)
     {
         var user = users.FindByHandle(request.Handle);
         output.Present(user is null
-            ? new ViewUserResponse(false, UserMessageKeys.UserNotFound, null, null)
-            : new ViewUserResponse(true, UserMessageKeys.UserFound, user.Handle, user.DisplayName));
+            ? new ViewUserResponse(false, UserMessageKeys.UserNotFound, null, null, null, Array.Empty<ViewUserPostSummaryResponse>())
+            : new ViewUserResponse(
+                true,
+                UserMessageKeys.UserFound,
+                user.Handle,
+                user.DisplayName,
+                user.ProfileImage is null ? null : UserResponseMapping.ToProfileImageResponse(user.ProfileImage),
+                posts.RecentPostsByAuthor(user.Handle, request.ReaderHandle, request.RecentPostLimit)
+                    .Select(ToResponse)
+                    .ToArray()));
     }
+
+    private static ViewUserPostSummaryResponse ToResponse(UserProfilePostSummary post) =>
+        new(
+            post.Id,
+            post.AuthorHandle,
+            post.Content,
+            post.ParentPostId,
+            post.OriginalPostId,
+            post.CreatedAt,
+            post.LikeCount,
+            post.LikedByCurrentReader,
+            post.RepostCount,
+            post.RepostedByCurrentReader,
+            post.QuotedPost is null
+                ? null
+                : new ViewUserQuotedPostSummaryResponse(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt));
+}
+
+internal static class UserResponseMapping
+{
+    public static ProfileImageResponse ToProfileImageResponse(ProfileImage image) =>
+        new(
+            image.AssetId,
+            image.StorageKey,
+            image.ContentType,
+            image.ByteLength,
+            image.Width,
+            image.Height,
+            image.UploadedAt);
 }

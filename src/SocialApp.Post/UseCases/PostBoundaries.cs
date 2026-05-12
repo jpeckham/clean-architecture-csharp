@@ -23,3 +23,7 @@ public interface IRepostInputBoundary { void Handle(RepostRequest request); }
 public interface IRepostOutputBoundary { void Present(RepostResponse response); }
 public interface IDeletePostInputBoundary { void Handle(DeletePostRequest request); }
 public interface IDeletePostOutputBoundary { void Present(DeletePostResponse response); }
+public interface IBeginPostMediaUploadInputBoundary { void Handle(BeginPostMediaUploadRequest request); }
+public interface IBeginPostMediaUploadOutputBoundary { void Present(BeginPostMediaUploadResponse response); }
+public interface ICompletePostMediaUploadInputBoundary { void Handle(CompletePostMediaUploadRequest request); }
+public interface ICompletePostMediaUploadOutputBoundary { void Present(CompletePostMediaUploadResponse response); }

@@ -1,0 +1,30 @@
+using SocialApp.Post.Gateways;
+using SocialApp.Post.UseCases;
+using SocialApp.User.Gateways;
+
+namespace SocialApp.Api.Endpoints;
+
+public sealed class UserProfilePostGatewayAdapter(IPostGateway posts) : IUserProfilePostGateway
+{
+    public IReadOnlyList<UserProfilePostSummary> RecentPostsByAuthor(string authorHandle, string readerHandle, int limit) =>
+        posts.RecentByAuthor(authorHandle, Math.Clamp(limit, 1, 100))
+            .Select(post => CreatePostInteractor.ToSummary(post, posts, readerHandle))
+            .Select(ToUserProfilePost)
+            .ToArray();
+
+    private static UserProfilePostSummary ToUserProfilePost(SocialApp.Post.ResponseModels.PostSummaryResponse post) =>
+        new(
+            post.Id,
+            post.AuthorHandle,
+            post.Content,
+            post.ParentPostId,
+            post.OriginalPostId,
+            post.CreatedAt,
+            post.LikeCount,
+            post.LikedByCurrentReader,
+            post.RepostCount,
+            post.RepostedByCurrentReader,
+            post.QuotedPost is null
+                ? null
+                : new UserProfileQuotedPostSummary(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt));
+}

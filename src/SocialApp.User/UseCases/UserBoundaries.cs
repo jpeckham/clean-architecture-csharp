@@ -27,3 +27,9 @@ public interface ISearchUserInputBoundary { void Handle(SearchUserRequest reques
 public interface ISearchUserOutputBoundary { void Present(SearchUserResponse response); }
 public interface IViewUserInputBoundary { void Handle(ViewUserRequest request); }
 public interface IViewUserOutputBoundary { void Present(ViewUserResponse response); }
+public interface IBeginProfileImageUploadInputBoundary { void Handle(BeginProfileImageUploadRequest request); }
+public interface IBeginProfileImageUploadOutputBoundary { void Present(BeginProfileImageUploadResponse response); }
+public interface ICompleteProfileImageUploadInputBoundary { void Handle(CompleteProfileImageUploadRequest request); }
+public interface ICompleteProfileImageUploadOutputBoundary { void Present(CompleteProfileImageUploadResponse response); }
+public interface IRemoveProfileImageInputBoundary { void Handle(RemoveProfileImageRequest request); }
+public interface IRemoveProfileImageOutputBoundary { void Present(RemoveProfileImageResponse response); }

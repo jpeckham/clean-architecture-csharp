@@ -19,6 +19,10 @@ public static class UserMessageKeys
     public const string ResetLinkInvalidOrExpired = "RESET_LINK_INVALID_OR_EXPIRED";
     public const string UserNotFound = "USER_NOT_FOUND";
     public const string UserFound = "USER_FOUND";
+    public const string ProfileImageUploadReserved = "PROFILE_IMAGE_UPLOAD_RESERVED";
+    public const string ProfileImageUploadCompleted = "PROFILE_IMAGE_UPLOAD_COMPLETED";
+    public const string ProfileImageUploadNotFound = "PROFILE_IMAGE_UPLOAD_NOT_FOUND";
+    public const string ProfileImageRemoved = "PROFILE_IMAGE_REMOVED";
 }
 
 public sealed record CreateAccountResponse(bool Succeeded, string MessageKey, string? Handle, string? SessionToken);
@@ -33,4 +37,22 @@ public sealed record RequestPasswordResetResponse(bool Succeeded, string Message
 public sealed record ResetPasswordResponse(bool Succeeded, string MessageKey);
 public sealed record UserSummaryResponse(string Handle, string DisplayName);
 public sealed record SearchUserResponse(IReadOnlyList<UserSummaryResponse> Users);
-public sealed record ViewUserResponse(bool Succeeded, string MessageKey, string? Handle, string? DisplayName);
+public sealed record ProfileImageResponse(Guid AssetId, string StorageKey, string ContentType, long ByteLength, int? Width, int? Height, DateTimeOffset UploadedAt);
+public sealed record ProfileImageUploadResponse(Guid AssetId, string StorageKey, string UploadUrl);
+public sealed record BeginProfileImageUploadResponse(bool Succeeded, string MessageKey, ProfileImageUploadResponse? Upload);
+public sealed record CompleteProfileImageUploadResponse(bool Succeeded, string MessageKey, ProfileImageResponse? ProfileImage);
+public sealed record RemoveProfileImageResponse(bool Succeeded, string MessageKey);
+public sealed record ViewUserQuotedPostSummaryResponse(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record ViewUserPostSummaryResponse(
+    Guid Id,
+    string AuthorHandle,
+    string Content,
+    Guid? ParentPostId,
+    Guid? OriginalPostId,
+    DateTimeOffset CreatedAt,
+    int LikeCount,
+    bool LikedByCurrentReader,
+    int RepostCount,
+    bool RepostedByCurrentReader,
+    ViewUserQuotedPostSummaryResponse? QuotedPost);
+public sealed record ViewUserResponse(bool Succeeded, string MessageKey, string? Handle, string? DisplayName, ProfileImageResponse? ProfileImage, IReadOnlyList<ViewUserPostSummaryResponse> Posts);

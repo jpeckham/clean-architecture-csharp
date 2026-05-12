@@ -70,10 +70,69 @@ public sealed class SearchUserPresenter : ISearchUserOutputBoundary
     public void Present(SearchUserResponse response) => ViewModel = new(response.Users.Select(u => new UserSummaryViewModel(u.Handle, u.DisplayName)).ToArray());
 }
 
+public sealed class BeginProfileImageUploadPresenter : IBeginProfileImageUploadOutputBoundary
+{
+    public BeginProfileImageUploadViewModel? ViewModel { get; private set; }
+    public void Present(BeginProfileImageUploadResponse response) =>
+        ViewModel = new(response.Succeeded, UserMessages.For(response.MessageKey), response.Upload?.AssetId, response.Upload?.UploadUrl);
+}
+
+public sealed class CompleteProfileImageUploadPresenter : ICompleteProfileImageUploadOutputBoundary
+{
+    public CompleteProfileImageUploadViewModel? ViewModel { get; private set; }
+    public void Present(CompleteProfileImageUploadResponse response) =>
+        ViewModel = new(response.Succeeded, UserMessages.For(response.MessageKey), UserPresenterMapping.ToProfileImageViewModel(response.ProfileImage));
+}
+
+public sealed class RemoveProfileImagePresenter : IRemoveProfileImageOutputBoundary
+{
+    public RemoveProfileImageViewModel? ViewModel { get; private set; }
+    public void Present(RemoveProfileImageResponse response) => ViewModel = new(response.Succeeded, UserMessages.For(response.MessageKey));
+}
+
 public sealed class ViewUserPresenter : IViewUserOutputBoundary
 {
     public ViewUserViewModel? ViewModel { get; private set; }
-    public void Present(ViewUserResponse response) => ViewModel = new(response.Succeeded, UserMessages.For(response.MessageKey), response.Handle, response.DisplayName);
+    public void Present(ViewUserResponse response) =>
+        ViewModel = new(
+            response.Succeeded,
+            UserMessages.For(response.MessageKey),
+            response.Handle,
+            response.DisplayName,
+            UserPresenterMapping.ToProfileImageViewModel(response.ProfileImage),
+            response.Posts.Select(ToViewModel).ToArray());
+
+    private static ViewUserPostSummaryViewModel ToViewModel(ViewUserPostSummaryResponse post) =>
+        new(
+            post.Id,
+            post.AuthorHandle,
+            post.Content,
+            post.ParentPostId,
+            post.OriginalPostId,
+            post.CreatedAt,
+            post.LikeCount,
+            post.LikedByCurrentReader,
+            post.RepostCount,
+            post.RepostedByCurrentReader,
+            post.QuotedPost is null
+                ? null
+                : new ViewUserQuotedPostSummaryViewModel(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt));
+}
+
+internal static class UserPresenterMapping
+{
+    public static ProfileImageViewModel? ToProfileImageViewModel(ProfileImageResponse? image) =>
+        image is null
+            ? null
+            : new ProfileImageViewModel(
+                image.AssetId,
+                image.StorageKey,
+                image.ContentType,
+                image.ByteLength,
+                image.Width,
+                image.Height,
+                image.UploadedAt,
+                $"/api/profile-images/{image.AssetId}");
 }
 
 internal static class UserMessages
@@ -96,7 +155,11 @@ internal static class UserMessages
         [UserMessageKeys.PasswordResetLinkSentIfAccountExists] = "If the account exists, a reset link was sent.",
         [UserMessageKeys.ResetLinkInvalidOrExpired] = "Reset link is invalid or expired.",
         [UserMessageKeys.UserNotFound] = "User not found.",
-        [UserMessageKeys.UserFound] = "User found."
+        [UserMessageKeys.UserFound] = "User found.",
+        [UserMessageKeys.ProfileImageUploadReserved] = "Profile image upload reserved.",
+        [UserMessageKeys.ProfileImageUploadCompleted] = "Profile image upload completed.",
+        [UserMessageKeys.ProfileImageUploadNotFound] = "Profile image upload not found.",
+        [UserMessageKeys.ProfileImageRemoved] = "Profile image removed."
     };
 
     public static string For(string key) => Messages.TryGetValue(key, out var message) ? message : key;
