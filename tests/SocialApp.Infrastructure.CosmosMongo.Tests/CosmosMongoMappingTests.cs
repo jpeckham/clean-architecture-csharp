@@ -54,6 +54,58 @@ public sealed class CosmosMongoMappingTests
     }
 
     [Fact]
+    public void User_documents_round_trip_profile_image_metadata()
+    {
+        var uploadedAt = DateTimeOffset.Parse("2026-05-11T10:15:30+00:00");
+        var profileImage = new ProfileImage(
+            Guid.NewGuid(),
+            "profile-images/ada/avatar.jpg",
+            "image/jpeg",
+            2048,
+            320,
+            240,
+            uploadedAt);
+        var user = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", "hash", profileImage);
+
+        var document = CosmosMongoMappers.ToDocument(user);
+        var entity = CosmosMongoMappers.ToEntity(document);
+
+        document.ProfileImage.Should().NotBeNull();
+        document.ProfileImage!.AssetId.Should().Be(profileImage.AssetId);
+        document.ProfileImage.StorageKey.Should().Be("profile-images/ada/avatar.jpg");
+        document.ProfileImage.ContentType.Should().Be("image/jpeg");
+        document.ProfileImage.ByteLength.Should().Be(2048);
+        document.ProfileImage.Width.Should().Be(320);
+        document.ProfileImage.Height.Should().Be(240);
+        document.ProfileImage.UploadedAt.Should().Be(uploadedAt);
+        entity.ProfileImage.Should().NotBeNull();
+        entity.ProfileImage!.AssetId.Should().Be(profileImage.AssetId);
+        entity.ProfileImage.StorageKey.Should().Be("profile-images/ada/avatar.jpg");
+        entity.ProfileImage.ContentType.Should().Be("image/jpeg");
+        entity.ProfileImage.ByteLength.Should().Be(2048);
+        entity.ProfileImage.Width.Should().Be(320);
+        entity.ProfileImage.Height.Should().Be(240);
+        entity.ProfileImage.UploadedAt.Should().Be(uploadedAt);
+    }
+
+    [Fact]
+    public void User_documents_without_profile_image_map_to_entities_without_profile_image()
+    {
+        var document = new UserDocument
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Ada Lovelace",
+            Handle = "@ada",
+            Email = "ada@example.com",
+            PasswordHash = "hash"
+        };
+
+        var entity = CosmosMongoMappers.ToEntity(document);
+
+        entity.ProfileImage.Should().BeNull();
+    }
+
+    [Fact]
     public void Post_documents_round_trip_to_entities()
     {
         var post = SocialPost.Create("@ada", "Hello from Cosmos");
@@ -97,6 +149,70 @@ public sealed class CosmosMongoMappingTests
             item.Kind == PostMediaKind.Image &&
             item.ContentType == "image/jpeg" &&
             item.AltText == "Ada diagram");
+    }
+
+    [Fact]
+    public void Post_documents_round_trip_all_media_metadata()
+    {
+        var media = new PostMediaItem(
+            Guid.NewGuid(),
+            PostMediaKind.Video,
+            "post-media/ada/video.mp4",
+            "video/mp4",
+            4096,
+            1920,
+            1080,
+            12_000,
+            1,
+            "post-media/ada/video-thumb.jpg",
+            "Ada demo video");
+        var post = SocialPost.Create("@ada", "Video demo", new[] { media });
+
+        var document = CosmosMongoMappers.ToDocument(post);
+        var entity = CosmosMongoMappers.ToEntity(document);
+
+        document.Media.Should().ContainSingle();
+        document.Media[0].AssetId.Should().Be(media.AssetId);
+        document.Media[0].Kind.Should().Be("Video");
+        document.Media[0].StorageKey.Should().Be("post-media/ada/video.mp4");
+        document.Media[0].ContentType.Should().Be("video/mp4");
+        document.Media[0].ByteLength.Should().Be(4096);
+        document.Media[0].Width.Should().Be(1920);
+        document.Media[0].Height.Should().Be(1080);
+        document.Media[0].DurationMs.Should().Be(12_000);
+        document.Media[0].SortOrder.Should().Be(1);
+        document.Media[0].ThumbnailKey.Should().Be("post-media/ada/video-thumb.jpg");
+        document.Media[0].AltText.Should().Be("Ada demo video");
+        entity.Media.Should().ContainSingle(item =>
+            item.AssetId == media.AssetId &&
+            item.Kind == PostMediaKind.Video &&
+            item.StorageKey == "post-media/ada/video.mp4" &&
+            item.ContentType == "video/mp4" &&
+            item.ByteLength == 4096 &&
+            item.Width == 1920 &&
+            item.Height == 1080 &&
+            item.DurationMs == 12_000 &&
+            item.SortOrder == 1 &&
+            item.ThumbnailKey == "post-media/ada/video-thumb.jpg" &&
+            item.AltText == "Ada demo video");
+    }
+
+    [Fact]
+    public void Post_documents_with_null_media_map_to_entities_with_empty_media()
+    {
+        var document = new PostDocument
+        {
+            Id = Guid.NewGuid(),
+            AuthorHandle = "@ada",
+            Content = "Text-only post",
+            CreatedAt = DateTimeOffset.UtcNow,
+            LikedBy = Array.Empty<string>(),
+            Media = null!
+        };
+
+        var entity = CosmosMongoMappers.ToEntity(document);
+
+        entity.Media.Should().BeEmpty();
     }
 
     [Fact]

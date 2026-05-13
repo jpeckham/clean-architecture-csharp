@@ -80,7 +80,7 @@ public static class CosmosMongoMappers
             document.CreatedAt,
             document.IsDeleted,
             document.LikedBy,
-            document.Media.Select(ToPostMediaItem).ToArray());
+            (document.Media ?? Array.Empty<PostMediaDocument>()).Select(ToPostMediaItem).ToArray());
 
     private static PostMediaItem ToPostMediaItem(PostMediaDocument document) =>
         new(
