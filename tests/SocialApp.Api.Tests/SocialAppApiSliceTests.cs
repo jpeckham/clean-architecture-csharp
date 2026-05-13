@@ -295,7 +295,13 @@ public sealed class SocialAppApiSliceTests
             m.Kind == "Image" &&
             m.ContentType == "image/jpeg" &&
             m.SortOrder == 0 &&
+            m.MediaUrl == $"/api/post-media/{upload.AssetId}" &&
             m.AltText == "Ada diagram");
+
+        var mediaResponse = await client.GetAsync($"/api/post-media/{upload.AssetId}");
+        mediaResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        mediaResponse.Content.Headers.ContentType!.MediaType.Should().Be("image/jpeg");
+        (await mediaResponse.Content.ReadAsByteArrayAsync()).Should().Equal(1, 2, 3, 4);
     }
 
     [Fact]
@@ -611,7 +617,7 @@ public sealed class SocialAppApiSliceTests
     private sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
     private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
-    private sealed record PostMediaSummaryResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText);
+    private sealed record PostMediaSummaryResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
     private sealed record PostSummaryResult(
         Guid Id,
         string AuthorHandle,

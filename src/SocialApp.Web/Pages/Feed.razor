@@ -25,7 +25,40 @@
             <h2>Create Post</h2>
             <EditForm Model="@post" OnValidSubmit="CreatePostAsync">
                 <InputTextArea @bind-Value="post.Content" placeholder="What changed?" />
-                <button type="submit" disabled="@isBusy">Post as @Session.Handle</button>
+                <div class="composer-media">
+                    <label class="file-button secondary-file">
+                        <InputFile OnChange="SelectMediaAsync" accept="image/*,video/*" multiple disabled="@(isBusy || isUploadingMedia)" />
+                        <span>@(isUploadingMedia ? "Uploading media..." : "Add media")</span>
+                    </label>
+                    @if (selectedMedia.Count > 0)
+                    {
+                        <button type="button" class="secondary compact" @onclick="ClearSelectedMedia" disabled="@(isBusy || isUploadingMedia)">Clear</button>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(mediaMessage))
+                {
+                    <p class="field-message">@mediaMessage</p>
+                }
+                @if (selectedMedia.Count > 0)
+                {
+                    <div class="media-preview-grid">
+                        @foreach (var media in selectedMedia)
+                        {
+                            <figure class="media-preview">
+                                @if (media.IsVideo)
+                                {
+                                    <video src="@media.PreviewUrl" controls preload="metadata"></video>
+                                }
+                                else
+                                {
+                                    <img src="@media.PreviewUrl" alt="" />
+                                }
+                                <figcaption>@media.Status</figcaption>
+                            </figure>
+                        }
+                    </div>
+                }
+                <button type="submit" disabled="@IsPostSubmitDisabled">Post as @Session.Handle</button>
             </EditForm>
         </section>
 
@@ -74,6 +107,7 @@
                         {
                             <p>@item.Content</p>
                         }
+                        <PostMediaGrid Media="@item.Media" />
                         <div class="post-actions">
                             <button
                                 type="button"
@@ -125,15 +159,25 @@
     private readonly PostForm post = new();
     private readonly SearchForm search = new();
     private readonly List<SocialApp.Web.Services.PostSummaryResult> posts = new();
+    private readonly List<SelectedMedia> selectedMedia = new();
     private string? message;
+    private string? mediaMessage;
     private Guid? activeRepostPostId;
     private string repostContent = string.Empty;
     private bool isBusy;
+    private bool isUploadingMedia;
+
+    private const long MaxPostMediaBytes = 50 * 1024 * 1024;
 
     [SupplyParameterFromQuery(Name = "query")]
     public string? Query { get; set; }
 
     private bool IsSearching => !string.IsNullOrWhiteSpace(search.Query);
+    private bool IsPostSubmitDisabled =>
+        isBusy ||
+        isUploadingMedia ||
+        selectedMedia.Any(media => media.AssetId is null || media.Failed) ||
+        string.IsNullOrWhiteSpace(post.Content) && selectedMedia.Count == 0;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -164,11 +208,149 @@
 
         await RunAsync(async () =>
         {
-            var result = await Api.CreatePostAsync(Session.SessionToken!, new(post.Content));
+            var mediaAssetIds = selectedMedia
+                .Select(media => media.AssetId)
+                .Where(assetId => assetId.HasValue)
+                .Select(assetId => assetId!.Value)
+                .ToArray();
+            var result = await Api.CreatePostAsync(Session.SessionToken!, new(post.Content, mediaAssetIds));
             message = result?.Message ?? "Post failed.";
-            post.Content = string.Empty;
-            await RefreshCurrentPostsAsync();
+            if (result?.Succeeded == true)
+            {
+                post.Content = string.Empty;
+                ClearSelectedMedia();
+                await RefreshCurrentPostsAsync();
+            }
         });
+    }
+
+    private async Task SelectMediaAsync(InputFileChangeEventArgs args)
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        mediaMessage = null;
+        selectedMedia.Clear();
+        var files = args.GetMultipleFiles(10).ToArray();
+        var validation = ValidateMediaSelection(files);
+        if (validation is not null)
+        {
+            mediaMessage = validation;
+            return;
+        }
+
+        isUploadingMedia = true;
+        try
+        {
+            foreach (var file in files)
+            {
+                var media = new SelectedMedia(file.Name, file.ContentType, file.Size, IsVideo(file), await CreatePreviewUrlAsync(file), "Preparing...");
+                selectedMedia.Add(media);
+                await UploadMediaAsync(file, media);
+            }
+        }
+        finally
+        {
+            isUploadingMedia = false;
+        }
+    }
+
+    private async Task UploadMediaAsync(IBrowserFile file, SelectedMedia media)
+    {
+        try
+        {
+            media.Status = "Reserving upload...";
+            var kind = media.IsVideo ? "Video" : "Image";
+            var begin = await Api.BeginPostMediaUploadAsync(
+                Session.SessionToken!,
+                new(kind, file.ContentType, file.Size, AltText: file.Name));
+            if (begin is not { Succeeded: true, AssetId: not null, UploadUrl: not null })
+            {
+                media.Fail(begin?.Message ?? "Media upload was rejected.");
+                return;
+            }
+
+            media.Status = "Uploading...";
+            var store = await Api.StoreUploadAsync(begin.UploadUrl, file, MaxPostMediaBytes);
+            if (store is not { Succeeded: true })
+            {
+                media.Fail(store?.Message ?? "Media upload failed.");
+                return;
+            }
+
+            media.Status = "Completing...";
+            var complete = await Api.CompletePostMediaUploadAsync(Session.SessionToken!, begin.AssetId.Value);
+            if (complete is not { Succeeded: true, AssetId: not null })
+            {
+                media.Fail(complete?.Message ?? "Media upload could not be completed.");
+                return;
+            }
+
+            media.AssetId = complete.AssetId.Value;
+            media.Status = "Ready";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
+        {
+            media.Fail(ex.Message);
+        }
+    }
+
+    private static string? ValidateMediaSelection(IReadOnlyList<IBrowserFile> files)
+    {
+        if (files.Count == 0)
+        {
+            return null;
+        }
+
+        var imageCount = files.Count(file => file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+        var videoCount = files.Count(file => file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase));
+        if (imageCount + videoCount != files.Count)
+        {
+            return "Only image and video files can be attached.";
+        }
+
+        if (files.Any(file => file.Size <= 0 || file.Size > MaxPostMediaBytes))
+        {
+            return "Each media file must be larger than 0 bytes and no more than 50 MB.";
+        }
+
+        if (videoCount > 0 && imageCount > 0)
+        {
+            return "Choose either up to 4 images or 1 video.";
+        }
+
+        if (imageCount > 4)
+        {
+            return "Choose up to 4 images.";
+        }
+
+        if (videoCount > 1)
+        {
+            return "Choose only 1 video.";
+        }
+
+        return null;
+    }
+
+    private static async Task<string> CreatePreviewUrlAsync(IBrowserFile file)
+    {
+        await using var stream = file.OpenReadStream(MaxPostMediaBytes);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        return $"data:{contentType};base64,{Convert.ToBase64String(buffer.ToArray())}";
+    }
+
+    private static bool IsVideo(IBrowserFile file) =>
+        file.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+
+    private void ClearSelectedMedia()
+    {
+        selectedMedia.Clear();
+        mediaMessage = null;
     }
 
     private async Task DeletePostAsync(SocialApp.Web.Services.PostSummaryResult item)
@@ -387,5 +569,23 @@
     private sealed class SearchForm
     {
         public string Query { get; set; } = string.Empty;
+    }
+
+    private sealed class SelectedMedia(string fileName, string contentType, long byteLength, bool isVideo, string previewUrl, string status)
+    {
+        public string FileName { get; } = fileName;
+        public string ContentType { get; } = contentType;
+        public long ByteLength { get; } = byteLength;
+        public bool IsVideo { get; } = isVideo;
+        public string PreviewUrl { get; } = previewUrl;
+        public string Status { get; set; } = status;
+        public Guid? AssetId { get; set; }
+        public bool Failed { get; private set; }
+
+        public void Fail(string message)
+        {
+            Failed = true;
+            Status = message;
+        }
     }
 }

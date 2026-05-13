@@ -11,7 +11,8 @@ public sealed record PostMediaSummaryViewModel(
     long? DurationMs,
     int SortOrder,
     string? ThumbnailKey,
-    string? AltText);
+    string? AltText,
+    string? MediaUrl = null);
 public sealed record PostSummaryViewModel(
     Guid Id,
     string AuthorHandle,

@@ -94,7 +94,8 @@ public sealed record UserProfilePostMediaSummary(
     long? DurationMs,
     int SortOrder,
     string? ThumbnailKey,
-    string? AltText);
+    string? AltText,
+    string? MediaUrl = null);
 public sealed record UserProfilePostSummary(
     Guid Id,
     string AuthorHandle,

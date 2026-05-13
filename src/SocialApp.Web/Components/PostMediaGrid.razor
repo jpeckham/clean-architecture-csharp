@@ -1,0 +1,65 @@
+@using SocialApp.Web.Services
+@inject SocialAppApiClient Api
+
+@if (Items.Count > 0)
+{
+    <div class="media-grid media-count-@Items.Count">
+        @foreach (var media in Items.OrderBy(item => item.SortOrder))
+        {
+            var mediaUrl = MediaUrl(media);
+            <figure class="media-item">
+                <button type="button" class="media-thumb-button" @onclick="() => OpenViewer(media)" aria-label="Open media">
+                    @if (IsVideo(media))
+                    {
+                        <span class="media-kind-badge">Video</span>
+                        <video src="@mediaUrl" preload="metadata" muted></video>
+                    }
+                    else
+                    {
+                        <img src="@mediaUrl" alt="@AltText(media)" loading="lazy" />
+                    }
+                </button>
+            </figure>
+        }
+    </div>
+}
+
+@if (activeMedia is not null)
+{
+    var activeUrl = MediaUrl(activeMedia);
+    <div class="media-viewer" role="dialog" aria-modal="true" @onclick="CloseViewer">
+        <div class="media-viewer-surface" @onclick:stopPropagation>
+            <button type="button" class="media-viewer-close" @onclick="CloseViewer" aria-label="Close media viewer">x</button>
+            @if (IsVideo(activeMedia))
+            {
+                <video src="@activeUrl" controls autoplay></video>
+            }
+            else
+            {
+                <img src="@activeUrl" alt="@AltText(activeMedia)" />
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<PostMediaSummaryResult>? Media { get; set; }
+
+    private PostMediaSummaryResult? activeMedia;
+    private IReadOnlyList<PostMediaSummaryResult> Items => Media ?? Array.Empty<PostMediaSummaryResult>();
+
+    private string MediaUrl(PostMediaSummaryResult media) =>
+        Api.ToAbsoluteApiUrl(media.MediaUrl ?? $"/api/post-media/{media.AssetId}");
+
+    private void OpenViewer(PostMediaSummaryResult media) => activeMedia = media;
+
+    private void CloseViewer() => activeMedia = null;
+
+    private static bool IsVideo(PostMediaSummaryResult media) =>
+        string.Equals(media.Kind, "Video", StringComparison.OrdinalIgnoreCase) ||
+        media.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+
+    private static string AltText(PostMediaSummaryResult media) =>
+        string.IsNullOrWhiteSpace(media.AltText) ? string.Empty : media.AltText;
+}

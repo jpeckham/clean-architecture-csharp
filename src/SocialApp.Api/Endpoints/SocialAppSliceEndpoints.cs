@@ -31,6 +31,7 @@ public static class SocialAppSliceEndpoints
         endpoints.MapGet("/api/profile-images/{assetId:guid}", GetProfileImage);
         endpoints.MapPost("/api/posts/media/upload-sessions", BeginPostMediaUploadSession);
         endpoints.MapPost("/api/posts/media/{assetId:guid}/complete", CompletePostMediaUpload);
+        endpoints.MapGet("/api/post-media/{assetId:guid}", GetPostMedia);
         endpoints.MapPut("/api/media/uploads/{assetId:guid}", StoreMediaUpload);
         endpoints.MapPost("/api/posts", CreatePost);
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
@@ -353,6 +354,14 @@ public static class SocialAppSliceEndpoints
         return image is null
             ? Results.NotFound()
             : Results.File(image.Content, image.ContentType);
+    }
+
+    private static IResult GetPostMedia(Guid assetId, IPostMediaStorageGateway postMedia)
+    {
+        var media = postMedia.FindStored(assetId);
+        return media is null
+            ? Results.NotFound()
+            : Results.File(media.Content, media.ContentType);
     }
 
     private static async Task<IResult> StoreMediaUpload(

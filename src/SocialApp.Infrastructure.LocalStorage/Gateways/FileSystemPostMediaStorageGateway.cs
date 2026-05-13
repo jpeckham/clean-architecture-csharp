@@ -81,6 +81,15 @@ public sealed class FileSystemPostMediaStorageGateway(IOptions<LocalMediaStorage
             : null;
     }
 
+    public StoredPostMedia? FindStored(Guid assetId)
+    {
+        var completed = ReadJson<ReservedPostMediaUpload>(CompletedPath(assetId));
+        var contentPath = ContentPath(assetId);
+        return completed is null || !File.Exists(contentPath)
+            ? null
+            : new(completed.ContentType, File.OpenRead(contentPath));
+    }
+
     private string MetadataPath() => Path.Combine(rootPath, "metadata", "post-media");
     private string UploadsPath() => Path.Combine(rootPath, "content", "post-media");
     private string PendingPath(Guid assetId) => Path.Combine(MetadataPath(), $"{assetId}.pending.json");

@@ -41,6 +41,45 @@ public sealed class SocialAppApiClient(HttpClient http)
         return await ReadAsync<CreatePostResult>(await http.SendAsync(message));
     }
 
+    public async Task<BeginPostMediaUploadResult?> BeginPostMediaUploadAsync(string sessionToken, BeginPostMediaUploadRequest request)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, "/api/posts/media/upload-sessions")
+        {
+            Content = JsonContent.Create(request)
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<BeginPostMediaUploadResult>(await http.SendAsync(message));
+    }
+
+    public async Task<SimpleResult?> StoreUploadAsync(string uploadUrl, IBrowserFile file, long maxAllowedSize)
+    {
+        await using var stream = file.OpenReadStream(maxAllowedSize);
+        using var content = new StreamContent(stream);
+        if (!string.IsNullOrWhiteSpace(file.ContentType))
+        {
+            content.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        }
+
+        using var message = new HttpRequestMessage(HttpMethod.Put, uploadUrl)
+        {
+            Content = content
+        };
+        using var response = await http.SendAsync(message);
+        return response.IsSuccessStatusCode
+            ? new SimpleResult(true, "Upload stored.")
+            : await response.Content.ReadFromJsonAsync<SimpleResult>();
+    }
+
+    public async Task<CompletePostMediaUploadResult?> CompletePostMediaUploadAsync(string sessionToken, Guid assetId)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"/api/posts/media/{assetId}/complete")
+        {
+            Content = JsonContent.Create(new { })
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<CompletePostMediaUploadResult>(await http.SendAsync(message));
+    }
+
     public async Task<SimpleResult?> DeletePostAsync(string sessionToken, Guid postId)
     {
         using var message = new HttpRequestMessage(HttpMethod.Delete, $"/api/posts/{postId}");
@@ -151,17 +190,32 @@ public sealed record LoginWithDeviceRequest(string Email, string Password, strin
 public sealed record VerifyDeviceOtpRequest(string Handle, string DeviceId, string Code, bool RememberDevice);
 public sealed record RequestPasswordResetRequest(string Email);
 public sealed record ResetPasswordRequest(string Token, string NewPassword);
-public sealed record CreatePostRequest(string Content);
+public sealed record CreatePostRequest(string Content, IReadOnlyList<Guid>? MediaAssetIds = null);
 public sealed record RepostPostRequest(string Content);
+public sealed record BeginPostMediaUploadRequest(string Kind, string ContentType, long ByteLength, int? Width = null, int? Height = null, long? DurationMs = null, string? AltText = null);
 public sealed record AuthResult(bool Succeeded, string Message, string? Handle, string? SessionToken);
 public sealed record DeviceLoginResult(bool Succeeded, string Message, string? Handle, string? SessionToken, bool OtpRequired);
 public sealed record CreatePostResult(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);
 public sealed record SimpleResult(bool Succeeded, string Message);
+public sealed record BeginPostMediaUploadResult(bool Succeeded, string Message, Guid? AssetId, string? UploadUrl);
+public sealed record CompletePostMediaUploadResult(bool Succeeded, string Message, Guid? AssetId);
 public sealed record ProfileImageUploadResult(bool Succeeded, string Message, ProfileImageSummaryResult? ProfileImage);
 public sealed record ProfileImageSummaryResult(Guid AssetId, string StorageKey, string ContentType, long ByteLength, int? Width, int? Height, DateTimeOffset UploadedAt, string ImageUrl);
 public sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
 public sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
 public sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record PostMediaSummaryResult(
+    Guid AssetId,
+    string Kind,
+    string ContentType,
+    long ByteLength,
+    int? Width,
+    int? Height,
+    long? DurationMs,
+    int SortOrder,
+    string? ThumbnailKey,
+    string? AltText,
+    string? MediaUrl);
 public sealed record PostSummaryResult(
     Guid Id,
     string AuthorHandle,
@@ -173,4 +227,5 @@ public sealed record PostSummaryResult(
     bool LikedByCurrentReader,
     int RepostCount,
     bool RepostedByCurrentReader,
-    QuotedPostSummaryResult? QuotedPost);
+    QuotedPostSummaryResult? QuotedPost,
+    IReadOnlyList<PostMediaSummaryResult>? Media = null);

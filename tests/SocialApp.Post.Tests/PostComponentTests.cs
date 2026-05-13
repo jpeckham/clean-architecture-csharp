@@ -580,6 +580,11 @@ public sealed class PostComponentTests
                 : null;
         }
 
+        public StoredPostMedia? FindStored(Guid assetId) =>
+            completed.TryGetValue(assetId, out var item)
+                ? new(item.ContentType, Stream.Null)
+                : null;
+
         private sealed record PendingPostMedia(ReservePostMediaUpload Upload, string StorageKey);
     }
 }

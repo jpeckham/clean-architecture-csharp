@@ -76,6 +76,33 @@ public sealed class LocalMediaStorageTests
         second.FindCompletedAsset(reservation.AssetId, "@ada").Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task Post_media_bytes_are_read_from_disk_after_completion()
+    {
+        var root = NewRoot();
+        var storage = PostMedia(root);
+        var reservation = storage.ReserveUpload(new ReservePostMediaUpload(
+            "@ada",
+            PostMediaKind.Video,
+            "video/mp4",
+            4,
+            null,
+            null,
+            1000,
+            null,
+            null));
+        await storage.StoreUploadAsync(reservation.AssetId, new MemoryStream(new byte[] { 5, 6, 7, 8 }));
+        storage.CompleteUpload(new CompleteReservedPostMediaUpload(reservation.AssetId, "@ada"));
+
+        var stored = storage.FindStored(reservation.AssetId);
+
+        stored.Should().NotBeNull();
+        stored!.ContentType.Should().Be("video/mp4");
+        using var content = new MemoryStream();
+        stored.Content.CopyTo(content);
+        content.ToArray().Should().Equal(5, 6, 7, 8);
+    }
+
     private static string NewRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "socialapp-local-media-tests", Guid.NewGuid().ToString("N"));

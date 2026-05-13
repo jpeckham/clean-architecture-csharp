@@ -53,7 +53,8 @@ public sealed record ViewUserPostMediaSummaryResponse(
     long? DurationMs,
     int SortOrder,
     string? ThumbnailKey,
-    string? AltText);
+    string? AltText,
+    string? MediaUrl = null);
 public sealed record ViewUserPostSummaryResponse(
     Guid Id,
     string AuthorHandle,

@@ -32,6 +32,7 @@ public sealed record ReservePostMediaUpload(
 
 public sealed record CompleteReservedPostMediaUpload(Guid AssetId, string OwnerHandle);
 public sealed record PostMediaUploadReservation(Guid AssetId, string StorageKey, string UploadUrl);
+public sealed record StoredPostMedia(string ContentType, Stream Content);
 
 public interface IPostMediaStorageGateway
 {
@@ -39,6 +40,7 @@ public interface IPostMediaStorageGateway
     Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default);
     PostMediaItem? CompleteUpload(CompleteReservedPostMediaUpload upload);
     PostMediaItem? FindCompletedAsset(Guid assetId, string ownerHandle);
+    StoredPostMedia? FindStored(Guid assetId);
 }
 
 public sealed class InMemoryPostGateway : IPostGateway
@@ -194,4 +196,9 @@ public sealed class InMemoryPostMediaStorageGateway : IPostMediaStorageGateway
             ? completed.Item
             : null;
     }
+
+    public StoredPostMedia? FindStored(Guid assetId) =>
+        _completed.TryGetValue(assetId, out var completed)
+            ? new(completed.Item.ContentType, Stream.Null)
+            : null;
 }

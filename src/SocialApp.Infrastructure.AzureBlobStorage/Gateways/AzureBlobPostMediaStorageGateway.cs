@@ -71,6 +71,18 @@ public sealed class AzureBlobPostMediaStorageGateway : IPostMediaStorageGateway
             : null;
     }
 
+    public StoredPostMedia? FindStored(Guid assetId)
+    {
+        var completed = ReadJson<ReservedPostMediaUpload>(MetadataBlob(assetId, "completed"));
+        var content = ContentBlob(assetId);
+        if (completed is null || !content.Exists())
+        {
+            return null;
+        }
+
+        return new(completed.ContentType, content.OpenRead());
+    }
+
     private BlobClient MetadataBlob(Guid assetId, string state) => container.GetBlobClient($"metadata/{assetId:N}.{state}.json");
     private BlobClient ContentBlob(Guid assetId) => container.GetBlobClient($"content/{assetId:N}");
 

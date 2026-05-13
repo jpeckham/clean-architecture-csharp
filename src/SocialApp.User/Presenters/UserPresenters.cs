@@ -127,7 +127,8 @@ public sealed class ViewUserPresenter : IViewUserOutputBoundary
                 m.DurationMs,
                 m.SortOrder,
                 m.ThumbnailKey,
-                m.AltText)).ToArray() ?? Array.Empty<ViewUserPostMediaSummaryViewModel>());
+                m.AltText,
+                m.MediaUrl ?? $"/api/post-media/{m.AssetId}")).ToArray() ?? Array.Empty<ViewUserPostMediaSummaryViewModel>());
 }
 
 internal static class UserPresenterMapping

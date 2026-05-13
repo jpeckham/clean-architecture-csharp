@@ -88,6 +88,7 @@
                             {
                                 <p>@item.Content</p>
                             }
+                            <PostMediaGrid Media="@item.Media" />
                             <div class="post-actions">
                                 <span class="heart-button @(item.LikedByCurrentReader ? "liked" : null)" aria-label="Likes">@(item.LikedByCurrentReader ? "\u2665" : "\u2661")</span>
                                 <span class="like-count">@item.LikeCount</span>
