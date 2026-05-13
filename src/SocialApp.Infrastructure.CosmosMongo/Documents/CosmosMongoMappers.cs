@@ -53,7 +53,21 @@ public static class CosmosMongoMappers
         OriginalPostId = post.OriginalPostId,
         CreatedAt = post.CreatedAt,
         IsDeleted = post.IsDeleted,
-        LikedBy = post.LikedBy.ToArray()
+        LikedBy = post.LikedBy.ToArray(),
+        Media = post.Media.Select(item => new PostMediaDocument
+        {
+            AssetId = item.AssetId,
+            Kind = item.Kind.ToString(),
+            StorageKey = item.StorageKey,
+            ContentType = item.ContentType,
+            ByteLength = item.ByteLength,
+            Width = item.Width,
+            Height = item.Height,
+            DurationMs = item.DurationMs,
+            SortOrder = item.SortOrder,
+            ThumbnailKey = item.ThumbnailKey,
+            AltText = item.AltText
+        }).ToArray()
     };
 
     public static SocialPost ToEntity(PostDocument document) =>
@@ -65,6 +79,20 @@ public static class CosmosMongoMappers
             document.OriginalPostId,
             document.CreatedAt,
             document.IsDeleted,
-            document.LikedBy);
+            document.LikedBy,
+            document.Media.Select(ToPostMediaItem).ToArray());
 
+    private static PostMediaItem ToPostMediaItem(PostMediaDocument document) =>
+        new(
+            document.AssetId,
+            Enum.Parse<PostMediaKind>(document.Kind, ignoreCase: true),
+            document.StorageKey,
+            document.ContentType,
+            document.ByteLength,
+            document.Width,
+            document.Height,
+            document.DurationMs,
+            document.SortOrder,
+            document.ThumbnailKey,
+            document.AltText);
 }

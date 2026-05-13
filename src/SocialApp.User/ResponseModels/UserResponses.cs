@@ -43,6 +43,17 @@ public sealed record BeginProfileImageUploadResponse(bool Succeeded, string Mess
 public sealed record CompleteProfileImageUploadResponse(bool Succeeded, string MessageKey, ProfileImageResponse? ProfileImage);
 public sealed record RemoveProfileImageResponse(bool Succeeded, string MessageKey);
 public sealed record ViewUserQuotedPostSummaryResponse(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record ViewUserPostMediaSummaryResponse(
+    Guid AssetId,
+    string Kind,
+    string ContentType,
+    long ByteLength,
+    int? Width,
+    int? Height,
+    long? DurationMs,
+    int SortOrder,
+    string? ThumbnailKey,
+    string? AltText);
 public sealed record ViewUserPostSummaryResponse(
     Guid Id,
     string AuthorHandle,
@@ -54,5 +65,6 @@ public sealed record ViewUserPostSummaryResponse(
     bool LikedByCurrentReader,
     int RepostCount,
     bool RepostedByCurrentReader,
-    ViewUserQuotedPostSummaryResponse? QuotedPost);
+    ViewUserQuotedPostSummaryResponse? QuotedPost,
+    IReadOnlyList<ViewUserPostMediaSummaryResponse>? Media = null);
 public sealed record ViewUserResponse(bool Succeeded, string MessageKey, string? Handle, string? DisplayName, ProfileImageResponse? ProfileImage, IReadOnlyList<ViewUserPostSummaryResponse> Posts);

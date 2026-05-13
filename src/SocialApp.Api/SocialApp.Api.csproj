@@ -5,6 +5,8 @@
     <ProjectReference Include="..\SocialApp.Post\SocialApp.Post.csproj" />
     <ProjectReference Include="..\SocialApp.Infrastructure.CosmosMongo\SocialApp.Infrastructure.CosmosMongo.csproj" />
     <ProjectReference Include="..\SocialApp.Infrastructure.AcsEmail\SocialApp.Infrastructure.AcsEmail.csproj" />
+    <ProjectReference Include="..\SocialApp.Infrastructure.LocalStorage\SocialApp.Infrastructure.LocalStorage.csproj" />
+    <ProjectReference Include="..\SocialApp.Infrastructure.AzureBlobStorage\SocialApp.Infrastructure.AzureBlobStorage.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

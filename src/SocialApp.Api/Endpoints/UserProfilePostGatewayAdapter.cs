@@ -26,5 +26,16 @@ public sealed class UserProfilePostGatewayAdapter(IPostGateway posts) : IUserPro
             post.RepostedByCurrentReader,
             post.QuotedPost is null
                 ? null
-                : new UserProfileQuotedPostSummary(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt));
+                : new UserProfileQuotedPostSummary(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt),
+            post.Media?.Select(m => new UserProfilePostMediaSummary(
+                m.AssetId,
+                m.Kind,
+                m.ContentType,
+                m.ByteLength,
+                m.Width,
+                m.Height,
+                m.DurationMs,
+                m.SortOrder,
+                m.ThumbnailKey,
+                m.AltText)).ToArray() ?? Array.Empty<UserProfilePostMediaSummary>());
 }

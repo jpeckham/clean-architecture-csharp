@@ -44,3 +44,21 @@ variable "password_reset_base_url" {
   type        = string
   default     = "https://localhost:7278/reset-password"
 }
+
+variable "profile_images_container_name" {
+  description = "Private Blob container used for profile image media."
+  type        = string
+  default     = "profile-images"
+}
+
+variable "post_media_container_name" {
+  description = "Private Blob container used for post media."
+  type        = string
+  default     = "post-media"
+}
+
+variable "media_blob_delete_retention_days" {
+  description = "Soft-delete retention period for media blobs and containers."
+  type        = number
+  default     = 7
+}

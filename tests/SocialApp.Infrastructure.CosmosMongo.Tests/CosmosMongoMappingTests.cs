@@ -72,6 +72,34 @@ public sealed class CosmosMongoMappingTests
     }
 
     [Fact]
+    public void Post_documents_round_trip_media_only_posts_to_entities()
+    {
+        var media = new PostMediaItem(
+            Guid.NewGuid(),
+            PostMediaKind.Image,
+            "post-media/ada/image.jpg",
+            "image/jpeg",
+            1234,
+            640,
+            480,
+            null,
+            0,
+            null,
+            "Ada diagram");
+        var post = SocialPost.Create("@ada", "", new[] { media });
+
+        var document = CosmosMongoMappers.ToDocument(post);
+        var entity = CosmosMongoMappers.ToEntity(document);
+
+        entity.Content.Should().BeEmpty();
+        entity.Media.Should().ContainSingle(item =>
+            item.AssetId == media.AssetId &&
+            item.Kind == PostMediaKind.Image &&
+            item.ContentType == "image/jpeg" &&
+            item.AltText == "Ada diagram");
+    }
+
+    [Fact]
     public void Delete_post_interactor_persists_deleted_state_through_gateway()
     {
         var posts = new DocumentBackedPostGateway();

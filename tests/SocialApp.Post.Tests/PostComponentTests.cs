@@ -536,6 +536,11 @@ public sealed class PostComponentTests
             return new(assetId, storageKey, $"https://uploads.test/{assetId}");
         }
 
+        public Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public PostMediaItem? CompleteUpload(CompleteReservedPostMediaUpload upload)
         {
             if (!pending.TryGetValue(upload.AssetId, out var pendingMedia) ||

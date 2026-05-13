@@ -1,6 +1,8 @@
 using SocialApp.Api.Endpoints;
 using SocialApp.Infrastructure.AcsEmail;
+using SocialApp.Infrastructure.AzureBlobStorage;
 using SocialApp.Infrastructure.CosmosMongo;
+using SocialApp.Infrastructure.LocalStorage;
 using SocialApp.Post.Gateways;
 using SocialApp.User.Gateways;
 
@@ -32,7 +34,21 @@ else
 }
 
 builder.Services.AddSingleton<IUserProfilePostGateway, UserProfilePostGatewayAdapter>();
-builder.Services.AddSingleton<IProfileImageStorageGateway, InMemoryProfileImageStorageGateway>();
+
+var mediaProvider = builder.Configuration["Media:Provider"];
+if (string.Equals(mediaProvider, "FileSystem", StringComparison.OrdinalIgnoreCase) ||
+    string.IsNullOrWhiteSpace(mediaProvider))
+{
+    builder.Services.AddLocalMediaStorage(builder.Configuration);
+}
+else if (string.Equals(mediaProvider, "AzureBlob", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddAzureBlobMediaStorage(builder.Configuration);
+}
+else
+{
+    throw new InvalidOperationException($"Unsupported media provider '{mediaProvider}'.");
+}
 
 if (!string.IsNullOrWhiteSpace(builder.Configuration["AcsEmail:ConnectionString"]))
 {

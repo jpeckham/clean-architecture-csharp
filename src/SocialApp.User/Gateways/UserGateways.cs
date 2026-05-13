@@ -70,7 +70,7 @@ public interface IProfileImageStorageGateway
 {
     ProfileImageUploadReservation ReserveUpload(ReserveProfileImageUpload upload);
     ReservedProfileImageUpload? CompleteUpload(CompleteReservedProfileImageUpload upload);
-    void StoreUpload(Guid assetId, byte[] content);
+    Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default);
     StoredProfileImage? FindStored(Guid assetId);
     void Remove(Guid assetId);
 }
@@ -82,8 +82,19 @@ public sealed record ReserveProfileImageUpload(string OwnerHandle, string Conten
 public sealed record CompleteReservedProfileImageUpload(Guid AssetId, string OwnerHandle);
 public sealed record ProfileImageUploadReservation(Guid AssetId, string StorageKey, string UploadUrl);
 public sealed record ReservedProfileImageUpload(Guid AssetId, string OwnerHandle, string StorageKey, string ContentType, long ByteLength);
-public sealed record StoredProfileImage(string ContentType, byte[] Content);
+public sealed record StoredProfileImage(string ContentType, Stream Content);
 public sealed record UserProfileQuotedPostSummary(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record UserProfilePostMediaSummary(
+    Guid AssetId,
+    string Kind,
+    string ContentType,
+    long ByteLength,
+    int? Width,
+    int? Height,
+    long? DurationMs,
+    int SortOrder,
+    string? ThumbnailKey,
+    string? AltText);
 public sealed record UserProfilePostSummary(
     Guid Id,
     string AuthorHandle,
@@ -95,7 +106,8 @@ public sealed record UserProfilePostSummary(
     bool LikedByCurrentReader,
     int RepostCount,
     bool RepostedByCurrentReader,
-    UserProfileQuotedPostSummary? QuotedPost);
+    UserProfileQuotedPostSummary? QuotedPost,
+    IReadOnlyList<UserProfilePostMediaSummary>? Media = null);
 
 public sealed class SystemClock : IClock
 {
@@ -264,7 +276,6 @@ public sealed class InMemoryProfileImageStorageGateway : IProfileImageStorageGat
 {
     private readonly Dictionary<Guid, ReservedProfileImageUpload> _pending = new();
     private readonly Dictionary<Guid, ReservedProfileImageUpload> _completed = new();
-    private readonly Dictionary<Guid, byte[]> _content = new();
 
     public ProfileImageUploadReservation ReserveUpload(ReserveProfileImageUpload upload)
     {
@@ -308,31 +319,24 @@ public sealed class InMemoryProfileImageStorageGateway : IProfileImageStorageGat
         return pending;
     }
 
-    public void StoreUpload(Guid assetId, byte[] content)
+    public Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default)
     {
-        if (content.Length == 0)
-        {
-            throw new ArgumentException("Profile image content is required.", nameof(content));
-        }
-
-        _content[assetId] = content.ToArray();
+        throw new NotSupportedException("Use a persistent profile image storage adapter for file content.");
     }
 
     public StoredProfileImage? FindStored(Guid assetId)
     {
-        if (!_completed.TryGetValue(assetId, out var completed) ||
-            !_content.TryGetValue(assetId, out var content))
+        if (!_completed.TryGetValue(assetId, out var completed))
         {
             return null;
         }
 
-        return new(completed.ContentType, content.ToArray());
+        return new(completed.ContentType, Stream.Null);
     }
 
     public void Remove(Guid assetId)
     {
         _pending.Remove(assetId);
         _completed.Remove(assetId);
-        _content.Remove(assetId);
     }
 }

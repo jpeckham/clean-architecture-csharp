@@ -9,8 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
-    <PackageReference Include="FluentAssertions" Version="8.9.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.7" />
+    <PackageReference Include="FluentAssertions" Version="8.8.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.7" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -22,9 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SocialApp.Api\SocialApp.Api.csproj" />
-    <ProjectReference Include="..\..\src\SocialApp.User\SocialApp.User.csproj" />
-    <ProjectReference Include="..\..\src\SocialApp.Post\SocialApp.Post.csproj" />
     <ProjectReference Include="..\..\src\SocialApp.Infrastructure.LocalStorage\SocialApp.Infrastructure.LocalStorage.csproj" />
   </ItemGroup>
 

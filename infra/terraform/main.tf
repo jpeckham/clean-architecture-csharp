@@ -1,5 +1,6 @@
 locals {
-  suffix = "${var.name_prefix}-${var.environment}"
+  suffix               = "${var.name_prefix}-${var.environment}"
+  storage_account_name = substr(lower(replace("st${var.name_prefix}${var.environment}media", "-", "")), 0, 24)
   tags = {
     application = "socialapp"
     environment = var.environment
@@ -123,6 +124,41 @@ resource "azurerm_cosmosdb_mongo_collection" "password_reset_tokens" {
   shard_key           = "_id"
 }
 
+resource "azurerm_storage_account" "media" {
+  name                            = local.storage_account_name
+  resource_group_name             = azurerm_resource_group.main.name
+  location                        = azurerm_resource_group.main.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  allow_nested_items_to_be_public = false
+  min_tls_version                 = "TLS1_2"
+  tags                            = local.tags
+
+  blob_properties {
+    delete_retention_policy {
+      days = var.media_blob_delete_retention_days
+    }
+
+    container_delete_retention_policy {
+      days = var.media_blob_delete_retention_days
+    }
+
+    versioning_enabled = true
+  }
+}
+
+resource "azurerm_storage_container" "profile_images" {
+  name                  = var.profile_images_container_name
+  storage_account_id    = azurerm_storage_account.media.id
+  container_access_type = "private"
+}
+
+resource "azurerm_storage_container" "post_media" {
+  name                  = var.post_media_container_name
+  storage_account_id    = azurerm_storage_account.media.id
+  container_access_type = "private"
+}
+
 resource "azurerm_communication_service" "main" {
   name                = "comm-${local.suffix}"
   resource_group_name = azurerm_resource_group.main.name
@@ -163,6 +199,10 @@ resource "azurerm_container_app" "api" {
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
   tags                         = local.tags
+
+  identity {
+    type = "SystemAssigned"
+  }
 
   secret {
     name  = "cosmos-mongo-connection-string"
@@ -217,6 +257,26 @@ resource "azurerm_container_app" "api" {
       }
 
       env {
+        name  = "Media__Provider"
+        value = "AzureBlob"
+      }
+
+      env {
+        name  = "AzureBlobMedia__AccountUri"
+        value = azurerm_storage_account.media.primary_blob_endpoint
+      }
+
+      env {
+        name  = "AzureBlobMedia__ProfileImagesContainer"
+        value = azurerm_storage_container.profile_images.name
+      }
+
+      env {
+        name  = "AzureBlobMedia__PostMediaContainer"
+        value = azurerm_storage_container.post_media.name
+      }
+
+      env {
         name  = "ASPNETCORE_URLS"
         value = "http://+:${var.api_container_port}"
       }
@@ -225,6 +285,12 @@ resource "azurerm_container_app" "api" {
     min_replicas = 0
     max_replicas = 3
   }
+}
+
+resource "azurerm_role_assignment" "api_media_blob_contributor" {
+  scope                = azurerm_storage_account.media.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_container_app.api.identity[0].principal_id
 }
 
 resource "azurerm_static_web_app" "web" {

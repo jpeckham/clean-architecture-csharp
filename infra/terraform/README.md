@@ -5,6 +5,7 @@ This Terraform stack provisions the smallest Azure footprint for the SocialApp v
 - Azure Static Web Apps for the Blazor WebAssembly frontend
 - Azure Container Apps for `SocialApp.Api`
 - Azure Cosmos DB for MongoDB API
+- Azure Blob Storage for profile images and post media
 - Azure Communication Services Email with an Azure-managed sender domain
 - Log Analytics for Container Apps logs
 
@@ -21,3 +22,5 @@ terraform -chdir=infra/terraform apply `
 ```
 
 The API container receives the Cosmos Mongo and ACS connection strings through Container Apps secrets. It reads email settings from `AcsEmail__ConnectionString` and `AcsEmail__SenderAddress`.
+
+Media storage is configured with `Media__Provider=AzureBlob`, `AzureBlobMedia__AccountUri`, and private `profile-images` / `post-media` containers. The API Container App uses its managed identity with `Storage Blob Data Contributor` on the media storage account.

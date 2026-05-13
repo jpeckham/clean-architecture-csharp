@@ -9,6 +9,8 @@ COPY src/SocialApp.User/SocialApp.User.csproj src/SocialApp.User/
 COPY src/SocialApp.Post/SocialApp.Post.csproj src/SocialApp.Post/
 COPY src/SocialApp.Infrastructure.CosmosMongo/SocialApp.Infrastructure.CosmosMongo.csproj src/SocialApp.Infrastructure.CosmosMongo/
 COPY src/SocialApp.Infrastructure.AcsEmail/SocialApp.Infrastructure.AcsEmail.csproj src/SocialApp.Infrastructure.AcsEmail/
+COPY src/SocialApp.Infrastructure.LocalStorage/SocialApp.Infrastructure.LocalStorage.csproj src/SocialApp.Infrastructure.LocalStorage/
+COPY src/SocialApp.Infrastructure.AzureBlobStorage/SocialApp.Infrastructure.AzureBlobStorage.csproj src/SocialApp.Infrastructure.AzureBlobStorage/
 COPY src/SocialApp.Api/SocialApp.Api.csproj src/SocialApp.Api/
 RUN dotnet restore src/SocialApp.Api/SocialApp.Api.csproj
 COPY . .

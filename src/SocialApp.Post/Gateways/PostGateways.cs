@@ -36,6 +36,7 @@ public sealed record PostMediaUploadReservation(Guid AssetId, string StorageKey,
 public interface IPostMediaStorageGateway
 {
     PostMediaUploadReservation ReserveUpload(ReservePostMediaUpload upload);
+    Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default);
     PostMediaItem? CompleteUpload(CompleteReservedPostMediaUpload upload);
     PostMediaItem? FindCompletedAsset(Guid assetId, string ownerHandle);
 }
@@ -127,4 +128,70 @@ public sealed class InMemoryPostSearchGateway(IPostGateway posts) : IPostSearchG
         postsById.TryGetValue(originalPostId, out var originalPost) &&
         !originalPost.IsDeleted &&
         originalPost.Content.Contains(query, StringComparison.OrdinalIgnoreCase);
+}
+
+public sealed class InMemoryPostMediaStorageGateway : IPostMediaStorageGateway
+{
+    private sealed record ReservedPostMediaUpload(ReservePostMediaUpload Upload, string StorageKey);
+    private sealed record CompletedPostMediaUpload(string OwnerHandle, PostMediaItem Item);
+
+    private readonly Dictionary<Guid, ReservedPostMediaUpload> _pending = new();
+    private readonly Dictionary<Guid, CompletedPostMediaUpload> _completed = new();
+
+    public PostMediaUploadReservation ReserveUpload(ReservePostMediaUpload upload)
+    {
+        if (string.IsNullOrWhiteSpace(upload.OwnerHandle))
+        {
+            throw new ArgumentException("Owner handle is required.", nameof(upload));
+        }
+
+        var assetId = Guid.NewGuid();
+        var storageKey = $"post-media/{upload.OwnerHandle.Trim().TrimStart('@')}/{assetId}";
+        _pending[assetId] = new ReservedPostMediaUpload(upload with
+        {
+            OwnerHandle = upload.OwnerHandle.Trim(),
+            ContentType = upload.ContentType.Trim()
+        }, storageKey);
+
+        return new(assetId, storageKey, $"post-media://{assetId}");
+    }
+
+    public Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public PostMediaItem? CompleteUpload(CompleteReservedPostMediaUpload upload)
+    {
+        if (!_pending.TryGetValue(upload.AssetId, out var pending) ||
+            !string.Equals(pending.Upload.OwnerHandle, upload.OwnerHandle, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var item = new PostMediaItem(
+            upload.AssetId,
+            pending.Upload.Kind,
+            pending.StorageKey,
+            pending.Upload.ContentType,
+            pending.Upload.ByteLength,
+            pending.Upload.Width,
+            pending.Upload.Height,
+            pending.Upload.DurationMs,
+            0,
+            pending.Upload.ThumbnailKey,
+            pending.Upload.AltText);
+
+        _pending.Remove(upload.AssetId);
+        _completed[upload.AssetId] = new(pending.Upload.OwnerHandle, item);
+        return item;
+    }
+
+    public PostMediaItem? FindCompletedAsset(Guid assetId, string ownerHandle)
+    {
+        return _completed.TryGetValue(assetId, out var completed) &&
+               string.Equals(completed.OwnerHandle, ownerHandle, StringComparison.OrdinalIgnoreCase)
+            ? completed.Item
+            : null;
+    }
 }

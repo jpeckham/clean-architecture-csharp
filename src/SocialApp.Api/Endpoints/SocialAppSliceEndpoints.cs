@@ -1,5 +1,6 @@
 using SocialApp.Api.Contracts;
 using SocialApp.Post.Controllers;
+using SocialApp.Post.Entities;
 using SocialApp.Post.Gateways;
 using SocialApp.Post.Presenters;
 using SocialApp.Post.UseCases;
@@ -23,9 +24,14 @@ public static class SocialAppSliceEndpoints
         endpoints.MapPost("/api/password-reset-requests", RequestPasswordReset);
         endpoints.MapPost("/api/password-resets", ResetPassword);
         endpoints.MapGet("/api/users/{handle}", ViewUser);
+        endpoints.MapPost("/api/users/me/profile-image/upload-sessions", BeginMyProfileImageUploadSession);
+        endpoints.MapPost("/api/users/me/profile-image/complete", CompleteMyProfileImageUpload);
         endpoints.MapPost("/api/users/me/profile-image", UploadMyProfileImage);
         endpoints.MapDelete("/api/users/me/profile-image", RemoveMyProfileImage);
         endpoints.MapGet("/api/profile-images/{assetId:guid}", GetProfileImage);
+        endpoints.MapPost("/api/posts/media/upload-sessions", BeginPostMediaUploadSession);
+        endpoints.MapPost("/api/posts/media/{assetId:guid}/complete", CompletePostMediaUpload);
+        endpoints.MapPut("/api/media/uploads/{assetId:guid}", StoreMediaUpload);
         endpoints.MapPost("/api/posts", CreatePost);
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
         endpoints.MapPost("/api/posts/{postId:guid}/likes", AddLikeToPost);
@@ -237,10 +243,8 @@ public static class SocialAppSliceEndpoints
 
         var assetId = beginPresenter.ViewModel!.AssetId!.Value;
         await using (var stream = file.OpenReadStream())
-        using (var buffer = new MemoryStream())
         {
-            await stream.CopyToAsync(buffer);
-            profileImages.StoreUpload(assetId, buffer.ToArray());
+            await profileImages.StoreUploadAsync(assetId, stream, httpRequest.HttpContext.RequestAborted);
         }
 
         var previousImage = user.ProfileImage;
@@ -256,6 +260,66 @@ public static class SocialAppSliceEndpoints
         return completePresenter.ViewModel is { Succeeded: true }
             ? Results.Ok(completePresenter.ViewModel)
             : Results.BadRequest(completePresenter.ViewModel);
+    }
+
+    private static IResult BeginMyProfileImageUploadSession(
+        BeginProfileImageUploadHttpRequest request,
+        HttpRequest httpRequest,
+        ISessionGateway sessions,
+        IProfileImageStorageGateway profileImages)
+    {
+        var user = ReadAuthenticatedUser(httpRequest, sessions);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var presenter = new BeginProfileImageUploadPresenter();
+        try
+        {
+            new BeginProfileImageUploadController(new BeginProfileImageUploadInteractor(profileImages, presenter))
+                .Begin(user.Handle, request.ContentType, request.ByteLength);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
+        }
+
+        return presenter.ViewModel is { Succeeded: true } viewModel
+            ? Results.Accepted(viewModel.UploadUrl, viewModel)
+            : Results.BadRequest(presenter.ViewModel);
+    }
+
+    private static IResult CompleteMyProfileImageUpload(
+        CompleteProfileImageUploadHttpRequest request,
+        HttpRequest httpRequest,
+        IUserGateway users,
+        ISessionGateway sessions,
+        IProfileImageStorageGateway profileImages,
+        IClock clock)
+    {
+        var user = ReadAuthenticatedUser(httpRequest, sessions);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var previousImage = user.ProfileImage;
+        var presenter = new CompleteProfileImageUploadPresenter();
+        new CompleteProfileImageUploadController(new CompleteProfileImageUploadInteractor(users, profileImages, clock, presenter))
+            .Complete(user.Handle, user.Handle, request.AssetId, request.Width, request.Height);
+
+        if (presenter.ViewModel is { Succeeded: true } viewModel)
+        {
+            if (previousImage is not null)
+            {
+                profileImages.Remove(previousImage.AssetId);
+            }
+
+            return Results.Ok(viewModel);
+        }
+
+        return Results.NotFound(presenter.ViewModel);
     }
 
     private static IResult RemoveMyProfileImage(
@@ -291,7 +355,91 @@ public static class SocialAppSliceEndpoints
             : Results.File(image.Content, image.ContentType);
     }
 
-    private static IResult CreatePost(CreatePostHttpRequest request, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
+    private static async Task<IResult> StoreMediaUpload(
+        Guid assetId,
+        HttpRequest httpRequest,
+        IProfileImageStorageGateway profileImages,
+        IPostMediaStorageGateway postMedia)
+    {
+        try
+        {
+            await postMedia.StoreUploadAsync(assetId, httpRequest.Body, httpRequest.HttpContext.RequestAborted);
+            return Results.NoContent();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        try
+        {
+            await profileImages.StoreUploadAsync(assetId, httpRequest.Body, httpRequest.HttpContext.RequestAborted);
+            return Results.NoContent();
+        }
+        catch (InvalidOperationException)
+        {
+            return Results.NotFound(new { succeeded = false, message = "Upload session was not found." });
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
+        }
+    }
+
+    private static IResult BeginPostMediaUploadSession(
+        BeginPostMediaUploadHttpRequest request,
+        HttpRequest httpRequest,
+        ISessionGateway sessions,
+        IPostMediaStorageGateway media)
+    {
+        var user = ReadAuthenticatedUser(httpRequest, sessions);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!Enum.TryParse<PostMediaKind>(request.Kind, ignoreCase: true, out var kind))
+        {
+            return Results.BadRequest(new { succeeded = false, message = "Media kind must be Image or Video." });
+        }
+
+        var presenter = new BeginPostMediaUploadPresenter();
+        try
+        {
+            new BeginPostMediaUploadController(new BeginPostMediaUploadInteractor(media, presenter))
+                .Begin(user.Handle, kind, request.ContentType, request.ByteLength, request.Width, request.Height, request.DurationMs, request.AltText);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
+        }
+
+        return presenter.ViewModel is { Succeeded: true } viewModel
+            ? Results.Accepted(viewModel.UploadUrl, viewModel)
+            : Results.BadRequest(presenter.ViewModel);
+    }
+
+    private static IResult CompletePostMediaUpload(
+        Guid assetId,
+        HttpRequest httpRequest,
+        ISessionGateway sessions,
+        IPostMediaStorageGateway media)
+    {
+        var user = ReadAuthenticatedUser(httpRequest, sessions);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var presenter = new CompletePostMediaUploadPresenter();
+        new CompletePostMediaUploadController(new CompletePostMediaUploadInteractor(media, presenter))
+            .Complete(assetId, user.Handle);
+
+        return presenter.ViewModel is { Succeeded: true }
+            ? Results.Ok(presenter.ViewModel)
+            : Results.NotFound(presenter.ViewModel);
+    }
+
+    private static IResult CreatePost(CreatePostHttpRequest request, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts, IPostMediaStorageGateway media)
     {
         var token = ReadBearerToken(httpRequest);
         if (string.IsNullOrWhiteSpace(token))
@@ -306,13 +454,17 @@ public static class SocialAppSliceEndpoints
         }
 
         var presenter = new CreatePostPresenter();
-        var controller = new CreatePostController(new CreatePostInteractor(posts, presenter));
+        var controller = new CreatePostController(new CreatePostInteractor(posts, presenter, media));
 
         try
         {
-            controller.Create(user.Handle, request.Content);
+            controller.Create(user.Handle, request.Content, request.MediaAssetIds);
         }
         catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
         {
             return Results.BadRequest(new { succeeded = false, message = ex.Message });
         }

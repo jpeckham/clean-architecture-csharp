@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: src/SocialApp.Api/Dockerfile
+    volumes:
+      - socialapp-media-data:/var/socialapp/media
     depends_on:
       mongo:
         condition: service_healthy
@@ -28,4 +30,4 @@ services:
 
 volumes:
   socialapp-mongo-data:
-
+  socialapp-media-data:

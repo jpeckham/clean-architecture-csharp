@@ -4,6 +4,8 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using SocialApp.Infrastructure.LocalStorage.Gateways;
+using SocialApp.Infrastructure.LocalStorage.Options;
 using SocialApp.Post.Gateways;
 using SocialApp.User.Gateways;
 using Xunit;
@@ -231,6 +233,189 @@ public sealed class SocialAppApiSliceTests
     }
 
     [Fact]
+    public async Task Post_media_upload_session_requires_authentication()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/posts/media/upload-sessions", new
+        {
+            kind = "Image",
+            contentType = "image/jpeg",
+            byteLength = 1234
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Authenticated_user_can_complete_post_media_and_create_media_only_post()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+
+        var beginResponse = await client.PostAsJsonAsync("/api/posts/media/upload-sessions", new
+        {
+            kind = "Image",
+            contentType = "image/jpeg",
+            byteLength = 1234,
+            width = 640,
+            height = 480,
+            altText = "Ada diagram"
+        });
+
+        beginResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var upload = await beginResponse.Content.ReadFromJsonAsync<BeginMediaUploadResult>();
+        upload!.AssetId.Should().NotBeNull();
+        upload.UploadUrl.Should().StartWith("/api/media/uploads/");
+
+        var uploadContent = new ByteArrayContent(new byte[] { 1, 2, 3, 4 });
+        uploadContent.Headers.ContentType = new("image/jpeg");
+        var storeResponse = await client.PutAsync(upload.UploadUrl, uploadContent);
+        storeResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var completeResponse = await client.PostAsJsonAsync($"/api/posts/media/{upload.AssetId}/complete", new { });
+        completeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new
+        {
+            content = "",
+            mediaAssetIds = new[] { upload.AssetId!.Value }
+        });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+        var recent = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?limit=20");
+        var post = recent!.Posts.Single(p => p.Id == created!.Id);
+        post.Content.Should().BeEmpty();
+        post.Media.Should().ContainSingle(m =>
+            m.AssetId == upload.AssetId &&
+            m.Kind == "Image" &&
+            m.ContentType == "image/jpeg" &&
+            m.SortOrder == 0 &&
+            m.AltText == "Ada diagram");
+    }
+
+    [Fact]
+    public async Task Create_post_rejects_uncompleted_or_foreign_media_asset()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var beginResponse = await client.PostAsJsonAsync("/api/posts/media/upload-sessions", new
+        {
+            kind = "Image",
+            contentType = "image/png",
+            byteLength = 100
+        });
+        var upload = await beginResponse.Content.ReadFromJsonAsync<BeginMediaUploadResult>();
+
+        var uncompletedResponse = await client.PostAsJsonAsync("/api/posts", new
+        {
+            content = "Uses pending media",
+            mediaAssetIds = new[] { upload!.AssetId!.Value }
+        });
+        var uploadContent = new ByteArrayContent(new byte[] { 1, 2, 3, 4 });
+        uploadContent.Headers.ContentType = new("image/png");
+        (await client.PutAsync(upload.UploadUrl, uploadContent)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        await client.PostAsJsonAsync($"/api/posts/media/{upload.AssetId}/complete", new { });
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        var foreignResponse = await client.PostAsJsonAsync("/api/posts", new
+        {
+            content = "Uses foreign media",
+            mediaAssetIds = new[] { upload.AssetId.Value }
+        });
+
+        uncompletedResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        foreignResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Complete_post_media_requires_owner()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var beginResponse = await client.PostAsJsonAsync("/api/posts/media/upload-sessions", new
+        {
+            kind = "Image",
+            contentType = "image/jpeg",
+            byteLength = 1234
+        });
+        var upload = await beginResponse.Content.ReadFromJsonAsync<BeginMediaUploadResult>();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        var uploadContent = new ByteArrayContent(new byte[] { 1, 2, 3, 4 });
+        uploadContent.Headers.ContentType = new("image/jpeg");
+        (await client.PutAsync(upload!.UploadUrl, uploadContent)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        var completeResponse = await client.PostAsJsonAsync($"/api/posts/media/{upload!.AssetId}/complete", new { });
+
+        completeResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Profile_image_upload_session_rejects_non_image_content_type()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+
+        var response = await client.PostAsJsonAsync("/api/users/me/profile-image/upload-sessions", new
+        {
+            contentType = "video/mp4",
+            byteLength = 1234
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Profile_image_upload_session_complete_and_delete_updates_view_user()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com", "Ada Lovelace");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+
+        var beginResponse = await client.PostAsJsonAsync("/api/users/me/profile-image/upload-sessions", new
+        {
+            contentType = "image/jpeg",
+            byteLength = 1234
+        });
+        beginResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var upload = await beginResponse.Content.ReadFromJsonAsync<BeginMediaUploadResult>();
+        var uploadContent = new ByteArrayContent(new byte[] { 1, 2, 3, 4 });
+        uploadContent.Headers.ContentType = new("image/jpeg");
+        (await client.PutAsync(upload!.UploadUrl, uploadContent)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var completeResponse = await client.PostAsJsonAsync("/api/users/me/profile-image/complete", new
+        {
+            assetId = upload.AssetId!.Value,
+            width = 640,
+            height = 480
+        });
+
+        completeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var profile = await client.GetFromJsonAsync<UserProfileResult>("/api/users/%40ada");
+        profile!.ProfileImage.Should().NotBeNull();
+        profile.ProfileImage!.AssetId.Should().Be(upload.AssetId.Value);
+        profile.ProfileImage.Width.Should().Be(640);
+
+        var deleteResponse = await client.DeleteAsync("/api/users/me/profile-image");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        profile = await client.GetFromJsonAsync<UserProfileResult>("/api/users/%40ada");
+        profile!.ProfileImage.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Authenticated_user_can_upload_and_remove_their_own_profile_image()
     {
         await using var factory = CreateInMemoryFactory();
@@ -389,12 +574,16 @@ public sealed class SocialAppApiSliceTests
                 services.RemoveAll<ISessionGateway>();
                 services.RemoveAll<IPostGateway>();
                 services.RemoveAll<IPostSearchGateway>();
+                services.RemoveAll<IPostMediaStorageGateway>();
                 services.RemoveAll<IProfileImageStorageGateway>();
                 services.AddSingleton<IUserGateway, InMemoryUserGateway>();
                 services.AddSingleton<ISessionGateway, InMemorySessionGateway>();
                 services.AddSingleton<IPostGateway, InMemoryPostGateway>();
                 services.AddSingleton<IPostSearchGateway, InMemoryPostSearchGateway>();
-                services.AddSingleton<IProfileImageStorageGateway, InMemoryProfileImageStorageGateway>();
+                var rootPath = Path.Combine(Path.GetTempPath(), "socialapp-api-tests", Guid.NewGuid().ToString("N"));
+                services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new LocalMediaStorageOptions { RootPath = rootPath }));
+                services.AddSingleton<IPostMediaStorageGateway, FileSystemPostMediaStorageGateway>();
+                services.AddSingleton<IProfileImageStorageGateway, FileSystemProfileImageStorageGateway>();
             }));
 
     private static async Task<AuthResult> CreateAccountAsync(HttpClient client, string handle, string email, string? displayName = null)
@@ -416,11 +605,13 @@ public sealed class SocialAppApiSliceTests
     private sealed record SimpleResult(bool Succeeded, string Message);
     private sealed record DevEmailsResult(IReadOnlyList<DevEmailResult> Emails);
     private sealed record DevEmailResult(string To, string Subject, string Body);
+    private sealed record BeginMediaUploadResult(bool Succeeded, string Message, Guid? AssetId, string? UploadUrl);
     private sealed record ProfileImageResult(bool Succeeded, string Message, ProfileImageSummaryResult? ProfileImage);
     private sealed record ProfileImageSummaryResult(Guid AssetId, string ContentType, long ByteLength, int? Width, int? Height, string ImageUrl);
     private sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
     private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
+    private sealed record PostMediaSummaryResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText);
     private sealed record PostSummaryResult(
         Guid Id,
         string AuthorHandle,
@@ -431,5 +622,6 @@ public sealed class SocialAppApiSliceTests
         bool LikedByCurrentReader,
         int RepostCount,
         bool RepostedByCurrentReader,
-        QuotedPostSummaryResult? QuotedPost);
+        QuotedPostSummaryResult? QuotedPost,
+        IReadOnlyList<PostMediaSummaryResult> Media);
 }

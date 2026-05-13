@@ -5,6 +5,8 @@ services:
       ASPNETCORE_URLS: http://+:8080
       CosmosMongo__ConnectionString: mongodb://mongo:27017
       CosmosMongo__DatabaseName: socialapp
+      Media__Provider: FileSystem
+      LocalMedia__RootPath: /var/socialapp/media
       Web__PasswordResetBaseUrl: http://localhost:8081/reset-password
     ports:
       - "8080:8080"
@@ -18,4 +20,3 @@ services:
   mongo:
     ports:
       - "27017:27017"
-

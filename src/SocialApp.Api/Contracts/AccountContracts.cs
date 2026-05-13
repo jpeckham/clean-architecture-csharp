@@ -8,3 +8,5 @@ public sealed record LoginWithDeviceHttpRequest(string Email, string Password, s
 public sealed record VerifyDeviceOtpHttpRequest(string Handle, string DeviceId, string Code, bool RememberDevice);
 public sealed record RequestPasswordResetHttpRequest(string Email);
 public sealed record ResetPasswordHttpRequest(string Token, string NewPassword);
+public sealed record BeginProfileImageUploadHttpRequest(string ContentType, long ByteLength);
+public sealed record CompleteProfileImageUploadHttpRequest(Guid AssetId, int? Width = null, int? Height = null);
