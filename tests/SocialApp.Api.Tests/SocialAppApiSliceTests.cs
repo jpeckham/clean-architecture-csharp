@@ -212,6 +212,7 @@ public sealed class SocialAppApiSliceTests
         client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
         await client.PostAsJsonAsync("/api/posts", new { content = "Grace profile post" });
         await client.PostAsync($"/api/posts/{adaPost!.Id}/likes", null);
+        var repostResponse = await client.PostAsJsonAsync($"/api/posts/{adaPost.Id}/reposts", new { content = "Grace profile quote" });
 
         var result = await client.GetFromJsonAsync<UserProfileResult>("/api/users/%40ada");
         var missingResponse = await client.GetAsync("/api/users/%40missing");
@@ -227,7 +228,10 @@ public sealed class SocialAppApiSliceTests
             p.Id == adaPost.Id &&
             p.Content == "Ada profile post" &&
             p.LikeCount == 1 &&
-            p.LikedByCurrentReader);
+            p.LikedByCurrentReader &&
+            p.RepostCount == 1 &&
+            p.RepostedByCurrentReader);
+        repostResponse.StatusCode.Should().Be(HttpStatusCode.Created);
         missingResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
         unauthenticatedResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }

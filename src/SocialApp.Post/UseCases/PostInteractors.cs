@@ -10,46 +10,8 @@ public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBo
     public void Handle(CreatePostRequest request)
     {
         var media = ResolveMedia(request);
-        output.Present(new(true, PostMessageKeys.PostCreated, ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content, media)))));
+        output.Present(new(true, PostMessageKeys.PostCreated, PostSummaryProjection.ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content, media)))));
     }
-
-    public static PostSummaryResponse ToSummary(SocialPost post, string? readerHandle = null) =>
-        ToSummary(post, null, readerHandle);
-
-    public static PostSummaryResponse ToSummary(SocialPost post, IPostGateway? posts, string? readerHandle = null)
-    {
-        var originalPost = post.OriginalPostId is { } originalPostId && posts is not null
-            ? posts.FindById(originalPostId)
-            : null;
-        var repostTargetId = post.OriginalPostId ?? post.Id;
-
-        return
-        new(
-            post.Id,
-            post.AuthorHandle,
-            post.Content,
-            post.ParentPostId,
-            post.OriginalPostId,
-            post.CreatedAt,
-            post.LikedBy.Count,
-            readerHandle is not null && post.LikedBy.Contains(readerHandle),
-            posts?.CountActiveReposts(repostTargetId) ?? 0,
-            readerHandle is not null && posts?.FindActiveRepost(repostTargetId, readerHandle) is not null,
-            originalPost is null ? null : new(originalPost.Id, originalPost.AuthorHandle, originalPost.Content, originalPost.CreatedAt),
-            post.Media.Select(ToMediaSummary).ToArray());
-    }
-
-    public static PostMediaSummaryResponse ToMediaSummary(PostMediaItem item) => new(
-        item.AssetId,
-        item.Kind.ToString(),
-        item.ContentType,
-        item.ByteLength,
-        item.Width,
-        item.Height,
-        item.DurationMs,
-        item.SortOrder,
-        item.ThumbnailKey,
-        item.AltText);
 
     private IReadOnlyList<PostMediaItem> ResolveMedia(CreatePostRequest request)
     {
@@ -119,18 +81,18 @@ public sealed class CompletePostMediaUploadInteractor(IPostMediaStorageGateway m
         var item = media.CompleteUpload(new(request.AssetId, request.OwnerHandle));
         output.Present(item is null
             ? new(false, PostMessageKeys.PostMediaAssetNotFound, null)
-            : new(true, PostMessageKeys.PostMediaUploadCompleted, CreatePostInteractor.ToMediaSummary(item)));
+            : new(true, PostMessageKeys.PostMediaUploadCompleted, PostSummaryProjection.ToMediaSummary(item)));
     }
 }
 
 public sealed class ScrollPostsInteractor(IPostGateway posts, IScrollPostsOutputBoundary output) : IScrollPostsInputBoundary
 {
-    public void Handle(ScrollPostsRequest request) => output.Present(new(posts.ScrollFor(request.ReaderHandle, request.Limit).Select(post => CreatePostInteractor.ToSummary(post, posts, request.ReaderHandle)).ToArray()));
+    public void Handle(ScrollPostsRequest request) => output.Present(new(posts.ScrollFor(request.ReaderHandle, request.Limit).Select(post => PostSummaryProjection.ToSummary(post, posts, request.ReaderHandle)).ToArray()));
 }
 
 public sealed class SearchPostsInteractor(IPostSearchGateway search, ISearchPostsOutputBoundary output, IPostGateway? posts = null) : ISearchPostsInputBoundary
 {
-    public void Handle(SearchPostsRequest request) => output.Present(new(search.Search(request.Query).Select(post => CreatePostInteractor.ToSummary(post, posts, request.ReaderHandle)).ToArray()));
+    public void Handle(SearchPostsRequest request) => output.Present(new(search.Search(request.Query).Select(post => PostSummaryProjection.ToSummary(post, posts, request.ReaderHandle)).ToArray()));
 }
 
 public sealed class FollowUserPostsInteractor(IPostGateway posts, IFollowUserPostsOutputBoundary output) : IFollowUserPostsInputBoundary
@@ -182,7 +144,7 @@ public sealed class ReplyToPostInteractor(IPostGateway posts, IReplyToPostOutput
     {
         if (posts.FindById(request.ParentPostId) is null) { output.Present(new(false, PostMessageKeys.ParentPostNotFound, null)); return; }
         var reply = posts.Save(SocialPost.ReplyTo(request.ParentPostId, request.AuthorHandle, request.Content));
-        output.Present(new(true, PostMessageKeys.ReplyCreated, CreatePostInteractor.ToSummary(reply)));
+        output.Present(new(true, PostMessageKeys.ReplyCreated, PostSummaryProjection.ToSummary(reply)));
     }
 }
 
@@ -210,7 +172,7 @@ public sealed class RepostInteractor(IPostGateway posts, IRepostOutputBoundary o
         }
 
         var repost = posts.Save(SocialPost.Repost(targetPost.Id, request.AuthorHandle, request.Content));
-        output.Present(new(true, PostMessageKeys.RepostCreated, CreatePostInteractor.ToSummary(repost, posts, request.AuthorHandle)));
+        output.Present(new(true, PostMessageKeys.RepostCreated, PostSummaryProjection.ToSummary(repost, posts, request.AuthorHandle)));
     }
 }
 

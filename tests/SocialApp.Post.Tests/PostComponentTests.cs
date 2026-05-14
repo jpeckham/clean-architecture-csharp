@@ -187,7 +187,10 @@ public sealed class PostComponentTests
         presenter.ViewModel!.Succeeded.Should().BeTrue();
         var created = posts.AllPosts.Should().ContainSingle().Subject;
         created.Media.Should().ContainSingle().Which.AssetId.Should().Be(reserved.AssetId);
-        CreatePostInteractor.ToSummary(created).Media.Should().ContainSingle(m => m.AssetId == reserved.AssetId);
+        new ProfilePostSummaryReadPort(posts)
+            .RecentByAuthor("@ada", "@ada", 10)
+            .Should().ContainSingle()
+            .Which.Media.Should().ContainSingle(m => m.AssetId == reserved.AssetId);
     }
 
     [Fact]
@@ -245,7 +248,22 @@ public sealed class PostComponentTests
         var presenter = new CreatePostPresenter();
         var post = SocialPost.Create("@ada", "First post");
 
-        presenter.Present(new(true, PostMessageKeys.PostCreated, CreatePostInteractor.ToSummary(post)));
+        presenter.Present(new(
+            true,
+            PostMessageKeys.PostCreated,
+            new(
+                post.Id,
+                post.AuthorHandle,
+                post.Content,
+                post.ParentPostId,
+                post.OriginalPostId,
+                post.CreatedAt,
+                0,
+                false,
+                0,
+                false,
+                null,
+                Array.Empty<PostMediaSummaryResponse>())));
 
         presenter.ViewModel!.Message.Should().Be("Post created.");
     }

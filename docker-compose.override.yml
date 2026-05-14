@@ -13,7 +13,7 @@ services:
 
   socialapp.web:
     environment:
-      API_BASE_ADDRESS: http://localhost:8080
+      API_BASE_ADDRESS: http://127.0.0.1:8080
     ports:
       - "8081:80"
 

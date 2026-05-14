@@ -1,14 +1,12 @@
 using SocialApp.Post.Gateways;
-using SocialApp.Post.UseCases;
 using SocialApp.User.Gateways;
 
 namespace SocialApp.Api.Endpoints;
 
-public sealed class UserProfilePostGatewayAdapter(IPostGateway posts) : IUserProfilePostGateway
+public sealed class UserProfilePostGatewayAdapter(IProfilePostSummaryReadPort posts) : IUserProfilePostGateway
 {
     public IReadOnlyList<UserProfilePostSummary> RecentPostsByAuthor(string authorHandle, string readerHandle, int limit) =>
-        posts.RecentByAuthor(authorHandle, Math.Clamp(limit, 1, 100))
-            .Select(post => CreatePostInteractor.ToSummary(post, posts, readerHandle))
+        posts.RecentByAuthor(authorHandle, readerHandle, limit)
             .Select(ToUserProfilePost)
             .ToArray();
 
