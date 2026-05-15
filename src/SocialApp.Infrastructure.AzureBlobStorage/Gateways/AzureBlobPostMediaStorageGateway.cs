@@ -34,7 +34,7 @@ public sealed class AzureBlobPostMediaStorageGateway : IPostMediaStorageGateway
             upload.ThumbnailKey,
             upload.AltText);
         MetadataBlob(assetId, "pending").Upload(BinaryData.FromString(JsonSerializer.Serialize(pending)), overwrite: true);
-        return new(assetId, storageKey, $"/api/media/uploads/{assetId}");
+        return new(assetId, storageKey, $"/api/media/uploads/post-media/{assetId}");
     }
 
     public async Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default)

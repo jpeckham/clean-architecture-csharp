@@ -36,7 +36,7 @@ public static class SocialAppSliceEndpoints
         endpoints.MapPost("/api/posts/media/upload-sessions", BeginPostMediaUploadSession);
         endpoints.MapPost("/api/posts/media/{assetId:guid}/complete", CompletePostMediaUpload);
         endpoints.MapGet("/api/post-media/{assetId:guid}", GetPostMedia);
-        endpoints.MapPut("/api/media/uploads/{assetId:guid}", StoreMediaUpload);
+        endpoints.MapPut("/api/media/uploads/{target}/{assetId:guid}", StoreMediaUpload);
         endpoints.MapPost("/api/posts", CreatePost);
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
         endpoints.MapPost("/api/posts/{postId:guid}/likes", AddLikeToPost);
@@ -416,23 +416,20 @@ public static class SocialAppSliceEndpoints
     }
 
     private static async Task<IResult> StoreMediaUpload(
+        string target,
         Guid assetId,
         HttpRequest httpRequest,
-        IProfileImageStorageGateway profileImages,
-        IPostMediaStorageGateway postMedia)
+        IMediaUploadGatewayResolver uploadGateways)
     {
-        try
+        var storeUpload = uploadGateways.Resolve(target);
+        if (storeUpload is null)
         {
-            await postMedia.StoreUploadAsync(assetId, httpRequest.Body, httpRequest.HttpContext.RequestAborted);
-            return Results.NoContent();
-        }
-        catch (InvalidOperationException)
-        {
+            return Results.NotFound(new { succeeded = false, message = "Upload target was not found." });
         }
 
         try
         {
-            await profileImages.StoreUploadAsync(assetId, httpRequest.Body, httpRequest.HttpContext.RequestAborted);
+            await storeUpload(assetId, httpRequest.Body, httpRequest.HttpContext.RequestAborted);
             return Results.NoContent();
         }
         catch (InvalidOperationException)

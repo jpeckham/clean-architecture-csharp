@@ -32,7 +32,7 @@ public sealed class FileSystemProfileImageStorageGateway(IOptions<LocalMediaStor
         var storageKey = $"profile-images/{owner}/{assetId}";
         var pending = new ReservedProfileImageUpload(assetId, upload.OwnerHandle.Trim(), storageKey, upload.ContentType.Trim(), upload.ByteLength);
         WriteJson(PendingPath(assetId), pending);
-        return new(assetId, storageKey, $"/api/media/uploads/{assetId}");
+        return new(assetId, storageKey, $"/api/media/uploads/profile-images/{assetId}");
     }
 
     public ReservedProfileImageUpload? CompleteUpload(CompleteReservedProfileImageUpload upload)

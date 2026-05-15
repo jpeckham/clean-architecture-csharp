@@ -273,7 +273,7 @@ public sealed class SocialAppApiSliceTests
         beginResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var upload = await beginResponse.Content.ReadFromJsonAsync<BeginMediaUploadResult>();
         upload!.AssetId.Should().NotBeNull();
-        upload.UploadUrl.Should().StartWith("/api/media/uploads/");
+        upload.UploadUrl.Should().StartWith("/api/media/uploads/post-media/");
 
         var uploadContent = new ByteArrayContent(new byte[] { 1, 2, 3, 4 });
         uploadContent.Headers.ContentType = new("image/jpeg");
@@ -306,6 +306,46 @@ public sealed class SocialAppApiSliceTests
         mediaResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         mediaResponse.Content.Headers.ContentType!.MediaType.Should().Be("image/jpeg");
         (await mediaResponse.Content.ReadAsByteArrayAsync()).Should().Equal(1, 2, 3, 4);
+    }
+
+    [Fact]
+    public async Task Profile_image_upload_session_uses_explicit_profile_image_upload_route()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+
+        var beginResponse = await client.PostAsJsonAsync("/api/users/me/profile-image/upload-sessions", new
+        {
+            contentType = "image/jpeg",
+            byteLength = 1234
+        });
+
+        beginResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var upload = await beginResponse.Content.ReadFromJsonAsync<BeginMediaUploadResult>();
+        upload!.UploadUrl.Should().StartWith("/api/media/uploads/profile-images/");
+    }
+
+    [Fact]
+    public async Task Store_media_upload_uses_route_target_without_falling_back_to_another_gateway()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var beginResponse = await client.PostAsJsonAsync("/api/users/me/profile-image/upload-sessions", new
+        {
+            contentType = "image/jpeg",
+            byteLength = 1234
+        });
+        var upload = await beginResponse.Content.ReadFromJsonAsync<BeginMediaUploadResult>();
+        var content = new ByteArrayContent(new byte[] { 1, 2, 3, 4 });
+        content.Headers.ContentType = new("image/jpeg");
+
+        var response = await client.PutAsync($"/api/media/uploads/post-media/{upload!.AssetId}", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -574,6 +614,18 @@ public sealed class SocialAppApiSliceTests
         emails!.Emails.Should().ContainSingle(email =>
             email.To == "ada-dev@example.com" &&
             email.Subject.Contains("Verify", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Api_startup_rejects_unsupported_media_provider()
+    {
+        using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder => builder.UseSetting("Media:Provider", "Unsupported"));
+
+        var act = () => factory.CreateClient();
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Unsupported media provider 'Unsupported'.");
     }
 
     private static WebApplicationFactory<Program> CreateInMemoryFactory() =>

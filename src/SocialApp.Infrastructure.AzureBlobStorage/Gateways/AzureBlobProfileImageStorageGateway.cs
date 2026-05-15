@@ -34,7 +34,7 @@ public sealed class AzureBlobProfileImageStorageGateway : IProfileImageStorageGa
         var storageKey = $"profile-images/{owner}/{assetId:N}";
         var pending = new ReservedProfileImageUpload(assetId, upload.OwnerHandle.Trim(), storageKey, upload.ContentType.Trim(), upload.ByteLength);
         MetadataBlob(assetId, "pending").Upload(BinaryData.FromString(JsonSerializer.Serialize(pending)), overwrite: true);
-        return new(assetId, storageKey, $"/api/media/uploads/{assetId}");
+        return new(assetId, storageKey, $"/api/media/uploads/profile-images/{assetId}");
     }
 
     public async Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default)

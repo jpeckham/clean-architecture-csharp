@@ -33,7 +33,7 @@ public sealed class FileSystemPostMediaStorageGateway(IOptions<LocalMediaStorage
             upload.ThumbnailKey,
             upload.AltText);
         WriteJson(PendingPath(assetId), pending);
-        return new(assetId, storageKey, $"/api/media/uploads/{assetId}");
+        return new(assetId, storageKey, $"/api/media/uploads/post-media/{assetId}");
     }
 
     public async Task StoreUploadAsync(Guid assetId, Stream content, CancellationToken cancellationToken = default)
