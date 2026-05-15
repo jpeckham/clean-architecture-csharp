@@ -1,68 +1,75 @@
-# Prompt: Split Business Components Into Assembly-Enforced Rings
+# Prompt: Re-evaluate Assembly Ring Separation Against Package-By-Component
 
 ## Objective
 
-Move from namespace-separated rings inside `SocialApp.User` and `SocialApp.Post` to assembly-enforced rings while preserving component-first organization.
+Revisit whether assembly-enforced rings are appropriate for this repository now that the repository's purpose is clarified:
 
-Current finding:
+> This repository exists as a reference architecture that strictly follows Robert C. Martin's Clean Architecture book while still being a full working application. Anything that obscures the reference architecture should get out of the way.
 
-- `SocialApp.User` and `SocialApp.Post` currently package entities, use cases, boundaries, controllers, presenters, view models, gateway interfaces, and in-memory gateway implementations together.
-- This keeps the repository readable but prevents strict Clean Architecture enforcement at the assembly level.
+The key architectural concern is that splitting `SocialApp.User` and `SocialApp.Post` into projects such as `SocialApp.User.Domain`, `SocialApp.User.Application`, and `SocialApp.User.Adapters` may combine package-by-feature with package-by-layer/ring. That can undermine the repository's teaching goal if the project structure no longer clearly communicates package-by-component.
 
-## Requirements
+## Current Finding
 
-- Preserve component-first decomposition around User and Post.
-- Do not create layer-first global projects such as `SocialApp.Application`, `SocialApp.Domain`, or `SocialApp.Infrastructure`.
-- Do not create a shared core or shared abstractions project.
-- Keep dependencies pointing inward.
+- `SocialApp.User` and `SocialApp.Post` are currently the primary business packages.
+- Each component package contains entities, use cases, boundaries, controllers, presenters, view models, gateway interfaces, and in-memory gateway implementations.
+- This keeps the repository's package structure aligned with component-first organization.
+- It also means ring separation is enforced mostly by folders, namespaces, tests, and discipline rather than by separate assemblies.
+
+## Architectural Constraint
+
+Package-by-component is primary.
+
+Do not replace the component packages with ring/layer packages unless there is a clear, book-faithful reason that improves the repository as a Clean Architecture reference. Compile-time ring enforcement is not enough justification by itself if the resulting project structure teaches the wrong lesson.
+
+## Questions To Answer Before Any Implementation
+
+1. Does Robert C. Martin's Clean Architecture require rings to be separate deployable/package units, or does it require source dependencies to point inward?
+2. In this repository, what is the clearest project/package structure for teaching package-by-component?
+3. Would component-scoped ring assemblies clarify or confuse that lesson?
+4. Can architecture tests enforce the dependency rule strongly enough while preserving `SocialApp.User` and `SocialApp.Post` as the package boundaries?
+5. Which current responsibilities are truly outer details that should move out of the business component packages without turning the codebase into package-by-layer?
+
+## Possible Scope
+
+This prompt may result in no implementation change.
+
+If there is useful scope, prefer changes that preserve `SocialApp.User` and `SocialApp.Post` as the primary component packages:
+
+- Keep `src/SocialApp.User` and `src/SocialApp.Post` as the business component assemblies.
+- Keep namespaces/folders that make Clean Architecture roles visible inside each component.
+- Strengthen architecture tests that prevent:
+  - entity dependencies on use cases, gateways, presenters, controllers, view models, transport models, or framework details
+  - use-case dependencies on controllers, presenters, API, Web, infrastructure, HTTP, JSON serialization, DI framework APIs, database drivers, or cloud SDKs
+  - presenters containing HTTP route literals or transport-specific concerns
+  - controllers depending on concrete interactors instead of input boundaries where avoidable
+  - cross-component references between User and Post
+- Consider moving only concrete infrastructure details out of component packages when they are clearly not part of the component's reference architecture story.
 - Keep API and Web behavior compatible.
-- Keep persistence and storage implementations outside inner business-rule assemblies.
+- Do not create global layer-first projects such as `SocialApp.Application`, `SocialApp.Domain`, or `SocialApp.Infrastructure`.
+- Do not create a shared core or shared abstractions project.
 
-## Suggested Target Structure
+## Non-Goals
 
-Use component-scoped ring assemblies, for example:
+- Do not split `SocialApp.User` into `SocialApp.User.Domain`, `SocialApp.User.Application`, and `SocialApp.User.Adapters` unless the evaluation proves that this does not harm the package-by-component lesson.
+- Do not split `SocialApp.Post` into ring assemblies for compile-time enforcement alone.
+- Do not optimize for conventional .NET Clean Architecture templates if they conflict with the book's package-by-component emphasis.
+- Do not introduce extra projects, abstractions, or indirection only to satisfy a purist interpretation if they make the reference application harder to understand.
 
-```text
-src/
-  SocialApp.User.Domain/
-  SocialApp.User.Application/
-  SocialApp.User.Adapters/
-  SocialApp.Post.Domain/
-  SocialApp.Post.Application/
-  SocialApp.Post.Adapters/
-  SocialApp.Infrastructure.InMemory/
-  SocialApp.Infrastructure.CosmosMongo/
-  SocialApp.Infrastructure.AcsEmail/
-  SocialApp.Infrastructure.LocalStorage/
-  SocialApp.Infrastructure.AzureBlobStorage/
-  SocialApp.Api/
-  SocialApp.Web/
-```
+## Deliverable
 
-Adjust the exact names only if the repository already has a stronger convention.
+Produce a short architectural recommendation before touching code:
 
-## Suggested Scope
+- State whether there is any implementation scope.
+- If no, explain why assembly ring separation should be rejected for this repository.
+- If yes, identify the smallest changes that improve strict Clean Architecture adherence while preserving package-by-component.
+- Include the specific tests or documentation updates that would prove the intended architecture.
 
-- Move User and Post entities into their component domain assemblies.
-- Move use cases, request/response models, input/output boundaries, and gateway ports into component application assemblies.
-- Move controllers, presenters, and view models into component adapter assemblies.
-- Move in-memory gateway implementations into `SocialApp.Infrastructure.InMemory` or test projects.
-- Update project references so:
-  - Domain references no outer project.
-  - Application references Domain.
-  - Adapters reference Application and Domain only as needed.
-  - Infrastructure references component application/domain contracts as needed.
-  - API composes adapters and infrastructure.
-  - Web remains HTTP-only and does not reference business or infrastructure projects.
-- Use `InternalsVisibleTo` only where tests genuinely require it.
-- Update namespaces, DI registration, tests, and docs.
-- Keep this refactor mechanical where possible; do not change behavior unless required by the move.
+## Verification If Code Changes Are Made
 
-## Verification
-
-- Run component, infrastructure, API, Web, and architecture tests.
+- Run the relevant component, infrastructure, API, Web, and architecture tests.
 - Run `dotnet test SocialApp.sln`.
-- Run `docker compose config`.
-- Run `docker compose build`.
-- Because this changes API composition and application wiring, run `docker compose up -d` and smoke test account creation, login, feed, profile viewing, and media upload through API `http://localhost:8080` and Web `http://localhost:8081`.
-
+- For changes touching API/Web wiring or user-visible flows, follow the repository Docker Compose verification requirements:
+  - `docker compose config`
+  - `docker compose build`
+  - `docker compose up -d`
+  - smoke test through API `http://localhost:8080` and Web `http://localhost:8081`
