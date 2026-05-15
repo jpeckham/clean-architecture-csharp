@@ -326,6 +326,14 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void In_memory_post_search_gateway_constructor_requires_in_memory_post_gateway()
+    {
+        var constructor = typeof(InMemoryPostSearchGateway).GetConstructors().Should().ContainSingle().Subject;
+
+        constructor.GetParameters().Should().ContainSingle().Which.ParameterType.Should().Be(typeof(InMemoryPostGateway));
+    }
+
+    [Fact]
     public void Like_reply_repost_and_delete_are_separate_use_cases()
     {
         var posts = new CountingPostGateway();

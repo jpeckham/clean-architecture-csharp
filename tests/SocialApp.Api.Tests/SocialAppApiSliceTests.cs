@@ -640,7 +640,8 @@ public sealed class SocialAppApiSliceTests
                 services.RemoveAll<IProfileImageStorageGateway>();
                 services.AddSingleton<IUserGateway, InMemoryUserGateway>();
                 services.AddSingleton<ISessionGateway, InMemorySessionGateway>();
-                services.AddSingleton<IPostGateway, InMemoryPostGateway>();
+                services.AddSingleton<InMemoryPostGateway>();
+                services.AddSingleton<IPostGateway>(sp => sp.GetRequiredService<InMemoryPostGateway>());
                 services.AddSingleton<IPostSearchGateway, InMemoryPostSearchGateway>();
                 var rootPath = Path.Combine(Path.GetTempPath(), "socialapp-api-tests", Guid.NewGuid().ToString("N"));
                 services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new LocalMediaStorageOptions { RootPath = rootPath }));

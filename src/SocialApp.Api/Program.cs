@@ -24,7 +24,8 @@ else
 {
     builder.Services.AddSingleton<IUserGateway, InMemoryUserGateway>();
     builder.Services.AddSingleton<ISessionGateway, InMemorySessionGateway>();
-    builder.Services.AddSingleton<IPostGateway, InMemoryPostGateway>();
+    builder.Services.AddSingleton<InMemoryPostGateway>();
+    builder.Services.AddSingleton<IPostGateway>(sp => sp.GetRequiredService<InMemoryPostGateway>());
     builder.Services.AddSingleton<IPostSearchGateway, InMemoryPostSearchGateway>();
     builder.Services.AddSingleton<IClock, SystemClock>();
     builder.Services.AddSingleton<IPendingRegistrationGateway, InMemoryPendingRegistrationGateway>();

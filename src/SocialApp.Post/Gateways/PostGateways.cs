@@ -111,11 +111,11 @@ public sealed class InMemoryPostGateway : IPostGateway
     }
 }
 
-public sealed class InMemoryPostSearchGateway(IPostGateway posts) : IPostSearchGateway
+public sealed class InMemoryPostSearchGateway(InMemoryPostGateway posts) : IPostSearchGateway
 {
     public IReadOnlyList<SocialPost> Search(string query)
     {
-        var allPosts = ((InMemoryPostGateway)posts).AllPosts;
+        var allPosts = posts.AllPosts;
         var postsById = allPosts.ToDictionary(p => p.Id);
 
         return allPosts
