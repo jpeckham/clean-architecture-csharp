@@ -47,7 +47,7 @@ internal static class PostPresenterMapping
             m.SortOrder,
             m.ThumbnailKey,
             m.AltText,
-            $"/api/post-media/{m.AssetId}")).ToArray() ?? Array.Empty<PostMediaSummaryViewModel>());
+            null)).ToArray() ?? Array.Empty<PostMediaSummaryViewModel>());
 }
 
 public sealed class FollowUserPostsPresenter : IFollowUserPostsOutputBoundary

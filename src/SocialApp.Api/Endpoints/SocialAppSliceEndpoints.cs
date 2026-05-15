@@ -4,6 +4,7 @@ using SocialApp.Post.Entities;
 using SocialApp.Post.Gateways;
 using SocialApp.Post.Presenters;
 using SocialApp.Post.UseCases;
+using SocialApp.Post.ViewModels;
 using SocialApp.User.Controllers;
 using SocialApp.User.Gateways;
 using SocialApp.User.Presenters;
@@ -388,7 +389,7 @@ public static class SocialAppSliceEndpoints
             viewModel.Handle,
             viewModel.DisplayName,
             ToHttpProfileImage(viewModel.ProfileImage, httpContext, links),
-            viewModel.Posts);
+            viewModel.Posts.Select(ToHttpUserPostSummary).ToArray());
 
     private static ProfileImageHttpResult? ToHttpProfileImage(
         ProfileImageViewModel? image,
@@ -709,7 +710,7 @@ public static class SocialAppSliceEndpoints
         var presenter = new ScrollPostsPresenter();
         var controller = new ScrollPostsController(new ScrollPostsInteractor(posts, presenter));
         controller.Scroll(reader.Handle, Math.Clamp(limit ?? 20, 1, 100));
-        return Results.Ok(presenter.ViewModel);
+        return Results.Ok(ToHttpResponse(presenter.ViewModel!));
     }
 
     private static IResult SearchPosts(HttpRequest httpRequest, string query, ISessionGateway sessions, IPostGateway posts, IPostSearchGateway search)
@@ -722,7 +723,7 @@ public static class SocialAppSliceEndpoints
 
         var presenter = new SearchPostsPresenter();
         new SearchPostsInteractor(search, presenter, posts).Handle(new(query, reader.Handle));
-        return Results.Ok(presenter.ViewModel);
+        return Results.Ok(ToHttpResponse(presenter.ViewModel!));
     }
 
     private static SocialApp.User.Entities.UserAccount? ReadAuthenticatedUser(HttpRequest request, ISessionGateway sessions)
@@ -761,5 +762,73 @@ public static class SocialAppSliceEndpoints
         string? Handle,
         string? DisplayName,
         ProfileImageHttpResult? ProfileImage,
-        IReadOnlyList<ViewUserPostSummaryViewModel> Posts);
+        IReadOnlyList<UserPostSummaryHttpResult> Posts);
+
+    private static PostsHttpResult ToHttpResponse(ScrollPostsViewModel viewModel) =>
+        new(viewModel.Posts.Select(ToHttpPostSummary).ToArray());
+
+    private static PostsHttpResult ToHttpResponse(SearchPostsViewModel viewModel) =>
+        new(viewModel.Posts.Select(ToHttpPostSummary).ToArray());
+
+    private static PostSummaryHttpResult ToHttpPostSummary(PostSummaryViewModel post) =>
+        new(
+            post.Id,
+            post.AuthorHandle,
+            post.Content,
+            post.ParentPostId,
+            post.OriginalPostId,
+            post.LikeCount,
+            post.LikedByCurrentReader,
+            post.RepostCount,
+            post.RepostedByCurrentReader,
+            post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content),
+            post.Media?.Select(ToHttpPostMedia).ToArray() ?? Array.Empty<PostMediaSummaryHttpResult>());
+
+    private static UserPostSummaryHttpResult ToHttpUserPostSummary(ViewUserPostSummaryViewModel post) =>
+        new(
+            post.Id,
+            post.AuthorHandle,
+            post.Content,
+            post.ParentPostId,
+            post.OriginalPostId,
+            post.LikeCount,
+            post.LikedByCurrentReader,
+            post.RepostCount,
+            post.RepostedByCurrentReader,
+            post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content),
+            post.Media?.Select(ToHttpUserPostMedia).ToArray() ?? Array.Empty<PostMediaSummaryHttpResult>());
+
+    private static PostMediaSummaryHttpResult ToHttpPostMedia(PostMediaSummaryViewModel media) =>
+        new(
+            media.AssetId,
+            media.Kind,
+            media.ContentType,
+            media.ByteLength,
+            media.Width,
+            media.Height,
+            media.DurationMs,
+            media.SortOrder,
+            media.ThumbnailKey,
+            media.AltText,
+            media.MediaUrl ?? $"/api/post-media/{media.AssetId}");
+
+    private static PostMediaSummaryHttpResult ToHttpUserPostMedia(ViewUserPostMediaSummaryViewModel media) =>
+        new(
+            media.AssetId,
+            media.Kind,
+            media.ContentType,
+            media.ByteLength,
+            media.Width,
+            media.Height,
+            media.DurationMs,
+            media.SortOrder,
+            media.ThumbnailKey,
+            media.AltText,
+            media.MediaUrl ?? $"/api/post-media/{media.AssetId}");
+
+    private sealed record PostsHttpResult(IReadOnlyList<PostSummaryHttpResult> Posts);
+    private sealed record QuotedPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content);
+    private sealed record PostMediaSummaryHttpResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
+    private sealed record PostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
+    private sealed record UserPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
 }

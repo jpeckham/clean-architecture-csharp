@@ -1,6 +1,5 @@
 using System.Reflection;
 using FluentAssertions;
-using Microsoft.AspNetCore.Components;
 using NetArchTest.Rules;
 using Xunit;
 
@@ -50,17 +49,6 @@ public sealed class ArchitectureRulesTests
     }
 
     [Fact]
-    public void Docker_web_app_uses_ipv4_loopback_for_browser_api_base_address()
-    {
-        var root = FindRepositoryRoot();
-        var composeOverride = File.ReadAllText(Path.Combine(root, "docker-compose.override.yml"));
-        var webEntrypoint = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "docker-entrypoint.d", "10-write-appsettings.sh"));
-
-        composeOverride.Should().Contain("API_BASE_ADDRESS: http://127.0.0.1:8080");
-        webEntrypoint.Should().Contain("API_BASE_ADDRESS:-http://127.0.0.1:8080");
-    }
-
-    [Fact]
     public void Web_does_not_reference_business_or_infrastructure_projects()
     {
         WebAssembly.GetReferencedAssemblies().Select(a => a.Name)
@@ -100,6 +88,68 @@ public sealed class ArchitectureRulesTests
     }
 
     [Fact]
+    public void Entities_do_not_depend_on_boundary_adapter_or_framework_details()
+    {
+        var forbidden = new[]
+        {
+            "SocialApp.Api",
+            "SocialApp.Web",
+            "SocialApp.Infrastructure",
+            "Microsoft.AspNetCore",
+            "Microsoft.Extensions",
+            "MongoDB",
+            "Azure",
+            "System.Net.Http",
+            "System.Text.Json",
+            "Controllers",
+            "Presenters",
+            "Gateways",
+            "UseCases",
+            "ViewModels",
+            "ResponseModels",
+            "RequestModels"
+        };
+
+        Types.InAssemblies(new[] { UserAssembly, PostAssembly })
+            .That().ResideInNamespaceEndingWith(".Entities")
+            .ShouldNot().HaveDependencyOnAny(forbidden)
+            .GetResult().IsSuccessful.Should().BeTrue("entities must remain pure domain objects; move boundary, adapter, framework, and transport concerns outward");
+    }
+
+    [Fact]
+    public void Use_cases_do_not_depend_on_outer_adapters_or_framework_details()
+    {
+        var forbidden = new[]
+        {
+            "SocialApp.Api",
+            "SocialApp.Web",
+            "SocialApp.Infrastructure",
+            "Microsoft.AspNetCore",
+            "Microsoft.Extensions.DependencyInjection",
+            "Microsoft.Extensions.Configuration",
+            "MongoDB",
+            "Azure",
+            "System.Net.Http",
+            "System.Text.Json"
+        };
+
+        Types.InAssemblies(new[] { UserAssembly, PostAssembly })
+            .That().ResideInNamespaceEndingWith(".UseCases")
+            .ShouldNot().HaveDependencyOnAny(forbidden)
+            .GetResult().IsSuccessful.Should().BeTrue("use cases should depend only on component boundaries and domain abstractions, not delivery or persistence details");
+    }
+
+    [Fact]
+    public void Component_presenters_do_not_contain_http_route_literals()
+    {
+        var routeLiterals = FindSourceLines(
+            new[] { "src/SocialApp.User/Presenters", "src/SocialApp.Post/Presenters" },
+            "\"/");
+
+        routeLiterals.Should().BeEmpty("presenters translate responses to view models; HTTP route construction belongs in API or Web adapters");
+    }
+
+    [Fact]
     public void Presenters_implement_output_boundaries()
     {
         var presenters = UserAssembly.GetTypes().Concat(PostAssembly.GetTypes())
@@ -132,15 +182,6 @@ public sealed class ArchitectureRulesTests
         componentReferences["SocialApp.Post"].Should().BeEmpty();
     }
 
-    [Fact]
-    public void Feed_has_separate_recent_and_search_routes()
-    {
-        typeof(SocialApp.Web.Pages.Feed)
-            .GetCustomAttributes<RouteAttribute>()
-            .Select(attribute => attribute.Template)
-            .Should().BeEquivalentTo(new[] { "/feed", "/feed/search" });
-    }
-
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -151,5 +192,19 @@ public sealed class ArchitectureRulesTests
 
         directory.Should().NotBeNull();
         return directory!.FullName;
+    }
+
+    private static IReadOnlyList<string> FindSourceLines(IEnumerable<string> relativeDirectories, string pattern)
+    {
+        var root = FindRepositoryRoot();
+        return relativeDirectories
+            .Select(relative => Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)))
+            .Where(Directory.Exists)
+            .SelectMany(directory => Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories))
+            .SelectMany(file => File.ReadLines(file)
+                .Select((line, index) => new { Line = line, LineNumber = index + 1 })
+                .Where(item => item.Line.Contains(pattern, StringComparison.Ordinal))
+                .Select(item => $"{Path.GetRelativePath(root, file)}:{item.LineNumber}: {item.Line.Trim()}"))
+            .ToArray();
     }
 }

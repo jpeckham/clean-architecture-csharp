@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SocialApp.Infrastructure.Lo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SocialApp.Infrastructure.AzureBlobStorage", "src\SocialApp.Infrastructure.AzureBlobStorage\SocialApp.Infrastructure.AzureBlobStorage.csproj", "{6B6842E4-AD31-4401-915D-4517E98BF5E8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SocialApp.Web.Tests", "tests\SocialApp.Web.Tests\SocialApp.Web.Tests.csproj", "{C907C9A5-A7F1-470D-A492-CC5EB96C5072}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -227,6 +229,18 @@ Global
 		{6B6842E4-AD31-4401-915D-4517E98BF5E8}.Release|x64.Build.0 = Release|Any CPU
 		{6B6842E4-AD31-4401-915D-4517E98BF5E8}.Release|x86.ActiveCfg = Release|Any CPU
 		{6B6842E4-AD31-4401-915D-4517E98BF5E8}.Release|x86.Build.0 = Release|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Debug|x64.Build.0 = Debug|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Debug|x86.Build.0 = Debug|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Release|x64.ActiveCfg = Release|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Release|x64.Build.0 = Release|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Release|x86.ActiveCfg = Release|Any CPU
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -246,5 +260,6 @@ Global
 		{939F53A8-5115-41C1-99B7-5731AA4D04E6} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{DD843412-B571-4BD2-A410-9D0ABF693AF7} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{6B6842E4-AD31-4401-915D-4517E98BF5E8} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{C907C9A5-A7F1-470D-A492-CC5EB96C5072} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
