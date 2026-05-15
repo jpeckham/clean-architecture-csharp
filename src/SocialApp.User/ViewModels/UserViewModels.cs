@@ -12,7 +12,7 @@ public sealed record RequestPasswordResetViewModel(bool Succeeded, string Messag
 public sealed record ResetPasswordViewModel(bool Succeeded, string Message);
 public sealed record UserSummaryViewModel(string Handle, string DisplayName);
 public sealed record SearchUserViewModel(IReadOnlyList<UserSummaryViewModel> Users);
-public sealed record ProfileImageViewModel(Guid AssetId, string StorageKey, string ContentType, long ByteLength, int? Width, int? Height, DateTimeOffset UploadedAt, string ImageUrl);
+public sealed record ProfileImageViewModel(Guid AssetId, string StorageKey, string ContentType, long ByteLength, int? Width, int? Height, DateTimeOffset UploadedAt);
 public sealed record BeginProfileImageUploadViewModel(bool Succeeded, string Message, Guid? AssetId, string? UploadUrl);
 public sealed record CompleteProfileImageUploadViewModel(bool Succeeded, string Message, ProfileImageViewModel? ProfileImage);
 public sealed record RemoveProfileImageViewModel(bool Succeeded, string Message);

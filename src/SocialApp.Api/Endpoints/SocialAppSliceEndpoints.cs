@@ -8,11 +8,14 @@ using SocialApp.User.Controllers;
 using SocialApp.User.Gateways;
 using SocialApp.User.Presenters;
 using SocialApp.User.UseCases;
+using SocialApp.User.ViewModels;
 
 namespace SocialApp.Api.Endpoints;
 
 public static class SocialAppSliceEndpoints
 {
+    private const string GetProfileImageRouteName = "GetProfileImage";
+
     public static IEndpointRouteBuilder MapSocialAppSlice(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/api/accounts", CreateAccount);
@@ -28,7 +31,8 @@ public static class SocialAppSliceEndpoints
         endpoints.MapPost("/api/users/me/profile-image/complete", CompleteMyProfileImageUpload);
         endpoints.MapPost("/api/users/me/profile-image", UploadMyProfileImage);
         endpoints.MapDelete("/api/users/me/profile-image", RemoveMyProfileImage);
-        endpoints.MapGet("/api/profile-images/{assetId:guid}", GetProfileImage);
+        endpoints.MapGet("/api/profile-images/{assetId:guid}", GetProfileImage)
+            .WithName(GetProfileImageRouteName);
         endpoints.MapPost("/api/posts/media/upload-sessions", BeginPostMediaUploadSession);
         endpoints.MapPost("/api/posts/media/{assetId:guid}/complete", CompletePostMediaUpload);
         endpoints.MapGet("/api/post-media/{assetId:guid}", GetPostMedia);
@@ -188,7 +192,13 @@ public static class SocialAppSliceEndpoints
             : Results.BadRequest(presenter.ViewModel);
     }
 
-    private static IResult ViewUser(string handle, HttpRequest httpRequest, IUserGateway users, ISessionGateway sessions, IUserProfilePostGateway profilePosts)
+    private static IResult ViewUser(
+        string handle,
+        HttpRequest httpRequest,
+        IUserGateway users,
+        ISessionGateway sessions,
+        IUserProfilePostGateway profilePosts,
+        LinkGenerator links)
     {
         var token = ReadBearerToken(httpRequest);
         if (string.IsNullOrWhiteSpace(token))
@@ -204,9 +214,9 @@ public static class SocialAppSliceEndpoints
 
         var presenter = new ViewUserPresenter();
         new ViewUserController(new ViewUserInteractor(users, profilePosts, presenter)).View(handle, reader.Handle);
-        return presenter.ViewModel is { Succeeded: true }
-            ? Results.Ok(presenter.ViewModel)
-            : Results.NotFound(presenter.ViewModel);
+        return presenter.ViewModel is { Succeeded: true } viewModel
+            ? Results.Ok(ToHttpResponse(viewModel, httpRequest.HttpContext, links))
+            : Results.NotFound(ToHttpResponse(presenter.ViewModel!, httpRequest.HttpContext, links));
     }
 
     private static async Task<IResult> UploadMyProfileImage(
@@ -214,7 +224,8 @@ public static class SocialAppSliceEndpoints
         IUserGateway users,
         ISessionGateway sessions,
         IProfileImageStorageGateway profileImages,
-        IClock clock)
+        IClock clock,
+        LinkGenerator links)
     {
         var user = ReadAuthenticatedUser(httpRequest, sessions);
         if (user is null)
@@ -262,9 +273,9 @@ public static class SocialAppSliceEndpoints
             profileImages.Remove(previousImage.AssetId);
         }
 
-        return completePresenter.ViewModel is { Succeeded: true }
-            ? Results.Ok(completePresenter.ViewModel)
-            : Results.BadRequest(completePresenter.ViewModel);
+        return completePresenter.ViewModel is { Succeeded: true } viewModel
+            ? Results.Ok(ToHttpResponse(viewModel, httpRequest.HttpContext, links))
+            : Results.BadRequest(ToHttpResponse(completePresenter.ViewModel!, httpRequest.HttpContext, links));
     }
 
     private static IResult BeginMyProfileImageUploadSession(
@@ -301,7 +312,8 @@ public static class SocialAppSliceEndpoints
         IUserGateway users,
         ISessionGateway sessions,
         IProfileImageStorageGateway profileImages,
-        IClock clock)
+        IClock clock,
+        LinkGenerator links)
     {
         var user = ReadAuthenticatedUser(httpRequest, sessions);
         if (user is null)
@@ -321,10 +333,10 @@ public static class SocialAppSliceEndpoints
                 profileImages.Remove(previousImage.AssetId);
             }
 
-            return Results.Ok(viewModel);
+            return Results.Ok(ToHttpResponse(viewModel, httpRequest.HttpContext, links));
         }
 
-        return Results.NotFound(presenter.ViewModel);
+        return Results.NotFound(ToHttpResponse(presenter.ViewModel!, httpRequest.HttpContext, links));
     }
 
     private static IResult RemoveMyProfileImage(
@@ -359,6 +371,41 @@ public static class SocialAppSliceEndpoints
             ? Results.NotFound()
             : Results.File(image.Content, image.ContentType);
     }
+
+    private static ProfileImageUploadHttpResult ToHttpResponse(
+        CompleteProfileImageUploadViewModel viewModel,
+        HttpContext httpContext,
+        LinkGenerator links) =>
+        new(viewModel.Succeeded, viewModel.Message, ToHttpProfileImage(viewModel.ProfileImage, httpContext, links));
+
+    private static UserProfileHttpResult ToHttpResponse(
+        ViewUserViewModel viewModel,
+        HttpContext httpContext,
+        LinkGenerator links) =>
+        new(
+            viewModel.Succeeded,
+            viewModel.Message,
+            viewModel.Handle,
+            viewModel.DisplayName,
+            ToHttpProfileImage(viewModel.ProfileImage, httpContext, links),
+            viewModel.Posts);
+
+    private static ProfileImageHttpResult? ToHttpProfileImage(
+        ProfileImageViewModel? image,
+        HttpContext httpContext,
+        LinkGenerator links) =>
+        image is null
+            ? null
+            : new(
+                image.AssetId,
+                image.StorageKey,
+                image.ContentType,
+                image.ByteLength,
+                image.Width,
+                image.Height,
+                image.UploadedAt,
+                links.GetPathByName(httpContext, GetProfileImageRouteName, new { assetId = image.AssetId })
+                    ?? throw new InvalidOperationException("Profile image route is not registered."));
 
     private static IResult GetPostMedia(Guid assetId, IPostMediaStorageGateway postMedia)
     {
@@ -695,4 +742,27 @@ public static class SocialAppSliceEndpoints
             ? authorization[bearerPrefix.Length..].Trim()
             : null;
     }
+
+    private sealed record ProfileImageHttpResult(
+        Guid AssetId,
+        string StorageKey,
+        string ContentType,
+        long ByteLength,
+        int? Width,
+        int? Height,
+        DateTimeOffset UploadedAt,
+        string ImageUrl);
+
+    private sealed record ProfileImageUploadHttpResult(
+        bool Succeeded,
+        string Message,
+        ProfileImageHttpResult? ProfileImage);
+
+    private sealed record UserProfileHttpResult(
+        bool Succeeded,
+        string Message,
+        string? Handle,
+        string? DisplayName,
+        ProfileImageHttpResult? ProfileImage,
+        IReadOnlyList<ViewUserPostSummaryViewModel> Posts);
 }

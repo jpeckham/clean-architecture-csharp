@@ -481,6 +481,7 @@ public sealed class UserComponentTests
         presenter.ViewModel.ProfileImage!.AssetId.Should().Be(assetId);
         presenter.ViewModel.ProfileImage.ContentType.Should().Be("image/jpeg");
         presenter.ViewModel.ProfileImage.Width.Should().Be(800);
+        presenter.ViewModel.ProfileImage.GetType().GetProperty("ImageUrl").Should().BeNull();
     }
 
     private sealed class CapturingLoginOutput : ILoginOutputBoundary

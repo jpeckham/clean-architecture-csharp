@@ -143,8 +143,7 @@ internal static class UserPresenterMapping
                 image.ByteLength,
                 image.Width,
                 image.Height,
-                image.UploadedAt,
-                $"/api/profile-images/{image.AssetId}");
+                image.UploadedAt);
 }
 
 internal static class UserMessages
