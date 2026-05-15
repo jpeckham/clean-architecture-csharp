@@ -7,16 +7,19 @@ using SocialApp.Post.Gateways;
 using SocialApp.Post.Presenters;
 using SocialApp.Post.UseCases;
 using SocialApp.User.Entities;
+using SocialApp.User.Gateways;
 using Xunit;
 
 namespace SocialApp.Infrastructure.CosmosMongo.Tests;
 
 public sealed class CosmosMongoMappingTests
 {
+    private static readonly IPasswordGateway Passwords = new Pbkdf2PasswordGateway();
+
     [Fact]
     public void Documents_with_guid_fields_can_be_serialized_by_mongo_driver()
     {
-        var user = CosmosMongoMappers.ToDocument(UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
+        var user = CosmosMongoMappers.ToDocument(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
         var post = CosmosMongoMappers.ToDocument(SocialPost.Create("@ada", "Hello from Cosmos"));
         var session = new SessionDocument
         {
@@ -39,7 +42,7 @@ public sealed class CosmosMongoMappingTests
     [Fact]
     public void User_documents_round_trip_to_entities()
     {
-        var user = UserAccount.Create("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        var user = UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!"));
 
         var document = CosmosMongoMappers.ToDocument(user);
         var entity = CosmosMongoMappers.ToEntity(document);
@@ -50,7 +53,7 @@ public sealed class CosmosMongoMappingTests
         entity.DisplayName.Should().Be("Ada Lovelace");
         entity.Handle.Should().Be("@ada");
         entity.Email.Should().Be("ada@example.com");
-        entity.CheckPassword("Correct9!").Should().BeTrue();
+        Passwords.Verify("Correct9!", entity.PasswordHash).Should().BeTrue();
     }
 
     [Fact]

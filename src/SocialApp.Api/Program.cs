@@ -35,6 +35,7 @@ else
 
 builder.Services.AddSingleton<IUserProfilePostGateway, UserProfilePostGatewayAdapter>();
 builder.Services.AddSingleton<IProfilePostSummaryReadPort, ProfilePostSummaryReadPort>();
+builder.Services.AddSingleton<IPasswordGateway, Pbkdf2PasswordGateway>();
 
 var mediaProvider = builder.Configuration["Media:Provider"];
 if (string.Equals(mediaProvider, "FileSystem", StringComparison.OrdinalIgnoreCase) ||
