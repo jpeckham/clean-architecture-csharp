@@ -532,6 +532,21 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void CreatePost_interactor_extracts_and_stores_hashtags()
+    {
+        var posts = new InMemoryPostGateway();
+        var presenter = new CreatePostPresenter();
+        var interactor = new CreatePostInteractor(posts, presenter);
+        var controller = new CreatePostController(interactor);
+
+        controller.Create("ada", "Learning #csharp today");
+
+        presenter.ViewModel!.Succeeded.Should().BeTrue();
+        var saved = posts.AllPosts.Single();
+        saved.Hashtags.Should().ContainSingle().Which.Should().Be("csharp");
+    }
+
+    [Fact]
     public void Delete_post_rejects_non_author_and_keeps_post_visible()
     {
         var posts = new InMemoryPostGateway();

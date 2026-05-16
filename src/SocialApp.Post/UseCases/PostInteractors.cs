@@ -11,7 +11,8 @@ public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBo
     {
         var media = ResolveMedia(request);
         var mentions = ResolveMentions(request.Content);
-        output.Present(new(true, PostMessageKeys.PostCreated, PostSummaryProjection.ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content, media, mentions)))));
+        var hashtags = SocialPost.ExtractHashtags(request.Content).ToArray();
+        output.Present(new(true, PostMessageKeys.PostCreated, PostSummaryProjection.ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content, media, mentions, hashtags)))));
     }
 
     private string[] ResolveMentions(string content) =>
@@ -150,7 +151,8 @@ public sealed class ReplyToPostInteractor(IPostGateway posts, IReplyToPostOutput
         if (posts.FindById(request.ParentPostId) is null) { output.Present(new(false, PostMessageKeys.ParentPostNotFound, null)); return; }
         var mentions = accounts is null ? Array.Empty<string>()
             : SocialPost.ExtractMentionHandles(request.Content).Where(accounts.Exists).ToArray();
-        var reply = posts.Save(SocialPost.ReplyTo(request.ParentPostId, request.AuthorHandle, request.Content, mentions));
+        var hashtags = SocialPost.ExtractHashtags(request.Content).ToArray();
+        var reply = posts.Save(SocialPost.ReplyTo(request.ParentPostId, request.AuthorHandle, request.Content, mentions, hashtags));
         output.Present(new(true, PostMessageKeys.ReplyCreated, PostSummaryProjection.ToSummary(reply)));
     }
 }
@@ -180,7 +182,8 @@ public sealed class RepostInteractor(IPostGateway posts, IRepostOutputBoundary o
 
         var mentions = accounts is null ? Array.Empty<string>()
             : SocialPost.ExtractMentionHandles(request.Content).Where(accounts.Exists).ToArray();
-        var repost = posts.Save(SocialPost.Repost(targetPost.Id, request.AuthorHandle, request.Content, mentions));
+        var hashtags = SocialPost.ExtractHashtags(request.Content).ToArray();
+        var repost = posts.Save(SocialPost.Repost(targetPost.Id, request.AuthorHandle, request.Content, mentions, hashtags));
         output.Present(new(true, PostMessageKeys.RepostCreated, PostSummaryProjection.ToSummary(repost, posts, request.AuthorHandle)));
     }
 }
