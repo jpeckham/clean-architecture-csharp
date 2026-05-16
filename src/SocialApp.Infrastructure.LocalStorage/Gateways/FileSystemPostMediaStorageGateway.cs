@@ -18,11 +18,11 @@ public sealed class FileSystemPostMediaStorageGateway(IOptions<LocalMediaStorage
         }
 
         var assetId = Guid.NewGuid();
-        var owner = upload.OwnerHandle.Trim().TrimStart('@');
+        var owner = SocialPost.NormalizeHandle(upload.OwnerHandle);
         var storageKey = $"post-media/{owner}/{assetId}";
         var pending = new ReservedPostMediaUpload(
             assetId,
-            upload.OwnerHandle.Trim(),
+            owner,
             upload.Kind,
             storageKey,
             upload.ContentType.Trim(),
@@ -55,7 +55,7 @@ public sealed class FileSystemPostMediaStorageGateway(IOptions<LocalMediaStorage
     public PostMediaItem? CompleteUpload(CompleteReservedPostMediaUpload upload)
     {
         var pending = ReadJson<ReservedPostMediaUpload>(PendingPath(upload.AssetId));
-        if (pending is null || !string.Equals(pending.OwnerHandle, upload.OwnerHandle, StringComparison.OrdinalIgnoreCase))
+        if (pending is null || !string.Equals(pending.OwnerHandle, SocialPost.NormalizeHandle(upload.OwnerHandle), StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -75,7 +75,7 @@ public sealed class FileSystemPostMediaStorageGateway(IOptions<LocalMediaStorage
     {
         var completed = ReadJson<ReservedPostMediaUpload>(CompletedPath(assetId));
         return completed is not null &&
-               string.Equals(completed.OwnerHandle, ownerHandle, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(completed.OwnerHandle, SocialPost.NormalizeHandle(ownerHandle), StringComparison.OrdinalIgnoreCase) &&
                File.Exists(ContentPath(assetId))
             ? ToItem(completed)
             : null;

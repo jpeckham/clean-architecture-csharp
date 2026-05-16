@@ -25,7 +25,7 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
     public SocialPost? FindActiveRepost(Guid originalPostId, string authorHandle) =>
         _posts.Find(p => !p.IsDeleted && p.OriginalPostId == originalPostId)
             .ToList()
-            .FirstOrDefault(p => string.Equals(p.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase)) is { } document
+            .FirstOrDefault(p => string.Equals(p.AuthorHandle, SocialPost.NormalizeHandle(authorHandle), StringComparison.OrdinalIgnoreCase)) is { } document
             ? CosmosMongoMappers.ToEntity(document)
             : null;
 
@@ -34,8 +34,9 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
 
     public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit)
     {
-        var followedHandles = _follows.Find(f => f.ReaderHandle == readerHandle).FirstOrDefault()?.Handles ?? Array.Empty<string>();
-        var blockedHandles = _blocks.Find(b => b.ReaderHandle == readerHandle).FirstOrDefault()?.Handles ?? Array.Empty<string>();
+        var normalizedReaderHandle = SocialPost.NormalizeHandle(readerHandle);
+        var followedHandles = _follows.Find(f => f.ReaderHandle == normalizedReaderHandle).FirstOrDefault()?.Handles ?? Array.Empty<string>();
+        var blockedHandles = _blocks.Find(b => b.ReaderHandle == normalizedReaderHandle).FirstOrDefault()?.Handles ?? Array.Empty<string>();
         var query = _posts.Find(p => !p.IsDeleted).ToList();
 
         return query
@@ -49,7 +50,7 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
 
     public IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit) =>
         _posts.Find(p => !p.IsDeleted).ToList()
-            .Where(p => string.Equals(p.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase))
+            .Where(p => string.Equals(p.AuthorHandle, SocialPost.NormalizeHandle(authorHandle), StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(p => p.CreatedAt)
             .Take(limit)
             .Select(CosmosMongoMappers.ToEntity)
@@ -79,11 +80,13 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
 
     private static void AddToSet(IMongoCollection<HandleSetDocument> collection, string readerHandle, string handle)
     {
+        var normalizedReaderHandle = SocialPost.NormalizeHandle(readerHandle);
+        var normalizedHandle = SocialPost.NormalizeHandle(handle);
         var update = Builders<HandleSetDocument>.Update
-            .SetOnInsert(d => d.ReaderHandle, readerHandle)
-            .AddToSet(d => d.Handles, handle);
+            .SetOnInsert(d => d.ReaderHandle, normalizedReaderHandle)
+            .AddToSet(d => d.Handles, normalizedHandle);
         collection.UpdateOne(
-            d => d.ReaderHandle == readerHandle,
+            d => d.ReaderHandle == normalizedReaderHandle,
             update,
             new UpdateOptions { IsUpsert = true });
     }

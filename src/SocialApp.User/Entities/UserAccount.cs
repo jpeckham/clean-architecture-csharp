@@ -28,9 +28,10 @@ public sealed class UserAccount
             throw new ArgumentException("Display name is required.", nameof(displayName));
         }
 
-        if (string.IsNullOrWhiteSpace(handle) || !handle.StartsWith('@'))
+        var normalizedHandle = NormalizeHandle(handle);
+        if (string.IsNullOrWhiteSpace(normalizedHandle))
         {
-            throw new ArgumentException("Handle must start with @.", nameof(handle));
+            throw new ArgumentException("Handle is required.", nameof(handle));
         }
 
         if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
@@ -43,7 +44,7 @@ public sealed class UserAccount
             throw new ArgumentException("Credentials are required.", nameof(credentials));
         }
 
-        return new UserAccount(Guid.NewGuid(), displayName.Trim(), handle.Trim(), email.Trim(), credentials, null);
+        return new UserAccount(Guid.NewGuid(), displayName.Trim(), normalizedHandle, email.Trim(), credentials, null);
     }
 
     public static UserAccount Rehydrate(
@@ -64,9 +65,10 @@ public sealed class UserAccount
             throw new ArgumentException("Display name is required.", nameof(displayName));
         }
 
-        if (string.IsNullOrWhiteSpace(handle) || !handle.StartsWith('@'))
+        var normalizedHandle = NormalizeHandle(handle);
+        if (string.IsNullOrWhiteSpace(normalizedHandle))
         {
-            throw new ArgumentException("Handle must start with @.", nameof(handle));
+            throw new ArgumentException("Handle is required.", nameof(handle));
         }
 
         if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
@@ -79,7 +81,7 @@ public sealed class UserAccount
             throw new ArgumentException("Credentials are required.", nameof(credentials));
         }
 
-        return new UserAccount(id, displayName.Trim(), handle.Trim(), email.Trim(), credentials, profileImage);
+        return new UserAccount(id, displayName.Trim(), normalizedHandle, email.Trim(), credentials, profileImage);
     }
 
     public void ChangeCredentials(string credentials)
@@ -101,4 +103,7 @@ public sealed class UserAccount
     {
         ProfileImage = null;
     }
+
+    public static string NormalizeHandle(string handle) =>
+        handle.Trim().TrimStart('@').Trim();
 }

@@ -23,6 +23,7 @@ internal static class PostSummaryProjection
 
     public static PostSummaryResponse ToSummary(SocialPost post, IPostGateway? posts, string? readerHandle = null)
     {
+        var normalizedReaderHandle = readerHandle is null ? null : SocialPost.NormalizeHandle(readerHandle);
         var originalPost = post.OriginalPostId is { } originalPostId && posts is not null
             ? posts.FindById(originalPostId)
             : null;
@@ -36,9 +37,9 @@ internal static class PostSummaryProjection
             post.OriginalPostId,
             post.CreatedAt,
             post.LikedBy.Count,
-            readerHandle is not null && post.LikedBy.Contains(readerHandle),
+            normalizedReaderHandle is not null && post.LikedBy.Contains(normalizedReaderHandle),
             posts?.CountActiveReposts(repostTargetId) ?? 0,
-            readerHandle is not null && posts?.FindActiveRepost(repostTargetId, readerHandle) is not null,
+            normalizedReaderHandle is not null && posts?.FindActiveRepost(repostTargetId, normalizedReaderHandle) is not null,
             originalPost is null ? null : new(originalPost.Id, originalPost.AuthorHandle, originalPost.Content, originalPost.CreatedAt),
             post.Media.Select(ToMediaSummary).ToArray());
     }

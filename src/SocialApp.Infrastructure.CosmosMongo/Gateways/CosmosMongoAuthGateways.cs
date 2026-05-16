@@ -1,5 +1,6 @@
 using MongoDB.Driver;
 using SocialApp.Infrastructure.CosmosMongo.Documents;
+using SocialApp.User.Entities;
 using SocialApp.User.Gateways;
 
 namespace SocialApp.Infrastructure.CosmosMongo.Gateways;
@@ -17,7 +18,7 @@ public sealed class CosmosMongoPendingRegistrationGateway(CosmosMongoCollections
             {
                 Email = email,
                 DisplayName = displayName,
-                Handle = handle,
+                Handle = UserAccount.NormalizeHandle(handle),
                 PasswordHash = storedCredentials
             },
             new ReplaceOptions { IsUpsert = true });
@@ -50,7 +51,7 @@ public sealed class CosmosMongoVerificationCodeGateway(CosmosMongoCollections co
     {
         var id = Id(email, purpose);
         var document = _codes.Find(c => c.Id == id).FirstOrDefault();
-        if (document is null || document.ExpiresAt < clock.UtcNow || document.Code != code)
+        if (document is null || document.ExpiresAt < clock.UtcNow || document.Code != NormalizeCode(code))
         {
             return false;
         }
@@ -63,6 +64,12 @@ public sealed class CosmosMongoVerificationCodeGateway(CosmosMongoCollections co
         _codes.Find(c => c.Email == email && c.ExpiresAt >= clock.UtcNow).FirstOrDefault()?.Code;
 
     private static string Id(string email, string purpose) => $"{email}|{purpose}".ToLowerInvariant();
+
+    private static string NormalizeCode(string code)
+    {
+        var digits = new string(code.Where(char.IsDigit).ToArray());
+        return digits.Length == 6 ? digits : code.Trim();
+    }
 }
 
 public sealed class CosmosMongoRememberedDeviceGateway(CosmosMongoCollections collections) : IRememberedDeviceGateway

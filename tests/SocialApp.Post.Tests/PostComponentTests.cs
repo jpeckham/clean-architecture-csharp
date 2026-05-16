@@ -17,7 +17,7 @@ public sealed class PostComponentTests
         var post = SocialPost.Create("@ada", "Hello component architecture");
 
         post.AddLike("@grace");
-        post.LikedBy.Should().Contain("@grace");
+        post.LikedBy.Should().Contain("grace");
         post.DeleteLike("@grace");
         post.LikedBy.Should().BeEmpty();
         Action blank = () => SocialPost.Create("@ada", " ");
@@ -130,7 +130,7 @@ public sealed class PostComponentTests
         post.Id.Should().Be(id);
         post.CreatedAt.Should().Be(createdAt);
         post.IsDeleted.Should().BeTrue();
-        post.LikedBy.Should().ContainSingle("@grace");
+        post.LikedBy.Should().ContainSingle("grace");
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class PostComponentTests
 
         presenter.ViewModel.Should().NotBeNull();
         presenter.ViewModel!.Succeeded.Should().BeTrue();
-        posts.AllPosts.Should().ContainSingle(p => p.AuthorHandle == "@ada");
+        posts.AllPosts.Should().ContainSingle(p => p.AuthorHandle == "ada");
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class PostComponentTests
 
         var searchPresenter = new SearchPostsPresenter();
         new SearchPostsController(new SearchPostsInteractor(search, searchPresenter)).Search("compiler");
-        searchPresenter.ViewModel!.Posts.Should().ContainSingle(p => p.AuthorHandle == "@grace");
+        searchPresenter.ViewModel!.Posts.Should().ContainSingle(p => p.AuthorHandle == "grace");
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public sealed class PostComponentTests
 
         results.Should().Contain(p => p.Id == original.Id);
         results.Should().Contain(p => p.Id == repost.Id);
-        results.Should().NotContain(p => p.AuthorHandle == "@linus");
+        results.Should().NotContain(p => p.AuthorHandle == "linus");
     }
 
     [Fact]
@@ -342,7 +342,7 @@ public sealed class PostComponentTests
 
         new AddLikeToPostController(new AddLikeToPostInteractor(posts, new AddLikeToPostPresenter()))
             .AddLike(original.Id, "@grace");
-        posts.FindById(original.Id)!.LikedBy.Should().Contain("@grace");
+        posts.FindById(original.Id)!.LikedBy.Should().Contain("grace");
         posts.SaveCount.Should().Be(1);
 
         var replyPresenter = new ReplyToPostPresenter();
@@ -439,13 +439,13 @@ public sealed class PostComponentTests
         originalView.RepostCount.Should().Be(2);
         originalView.RepostedByCurrentReader.Should().BeTrue();
 
-        var repostView = presenter.ViewModel.Posts.Single(p => p.AuthorHandle == "@grace");
+        var repostView = presenter.ViewModel.Posts.Single(p => p.AuthorHandle == "grace");
         var repost = posts.FindById(repostView.Id)!;
         repostView.Content.Should().Be("Grace take");
         repostView.CreatedAt.Should().Be(repost.CreatedAt);
         repostView.OriginalPostId.Should().Be(original.Id);
         repostView.QuotedPost.Should().NotBeNull();
-        repostView.QuotedPost!.AuthorHandle.Should().Be("@ada");
+        repostView.QuotedPost!.AuthorHandle.Should().Be("ada");
         repostView.QuotedPost.Content.Should().Be("root");
         repostView.QuotedPost.CreatedAt.Should().Be(original.CreatedAt);
         repostView.RepostCount.Should().Be(2);

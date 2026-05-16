@@ -52,7 +52,7 @@ public sealed class CosmosMongoMappingTests
         document.PasswordHash.Should().StartWith("PBKDF2$");
         entity.Id.Should().Be(user.Id);
         entity.DisplayName.Should().Be("Ada Lovelace");
-        entity.Handle.Should().Be("@ada");
+        entity.Handle.Should().Be("ada");
         entity.Email.Should().Be("ada@example.com");
         Credentials.Matches("Correct9!", entity.Credentials).Should().BeTrue();
     }
@@ -120,7 +120,7 @@ public sealed class CosmosMongoMappingTests
         var entity = CosmosMongoMappers.ToEntity(document);
 
         entity.Id.Should().Be(post.Id);
-        entity.AuthorHandle.Should().Be("@ada");
+        entity.AuthorHandle.Should().Be("ada");
         entity.Content.Should().Be("Hello from Cosmos");
         entity.CreatedAt.Should().Be(post.CreatedAt);
         entity.IsDeleted.Should().BeTrue();

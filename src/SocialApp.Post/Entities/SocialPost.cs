@@ -41,20 +41,20 @@ public sealed class SocialPost
     public static SocialPost Create(string authorHandle, string content, IReadOnlyList<PostMediaItem> media)
     {
         Validate(authorHandle, content, media);
-        return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), content.Trim(), null, null, DateTimeOffset.UtcNow, media);
+        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), null, null, DateTimeOffset.UtcNow, media);
     }
 
     public static SocialPost ReplyTo(Guid parentPostId, string authorHandle, string content)
     {
         Validate(authorHandle, content, Array.Empty<PostMediaItem>());
-        return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), content.Trim(), parentPostId, null, DateTimeOffset.UtcNow, null);
+        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), parentPostId, null, DateTimeOffset.UtcNow, null);
     }
 
     public static SocialPost Repost(Guid originalPostId, string authorHandle, string content = "")
     {
-        if (string.IsNullOrWhiteSpace(authorHandle) || !authorHandle.StartsWith('@'))
+        if (string.IsNullOrWhiteSpace(NormalizeHandle(authorHandle)))
         {
-            throw new ArgumentException("Author handle must start with @.", nameof(authorHandle));
+            throw new ArgumentException("Author handle is required.", nameof(authorHandle));
         }
 
         if (content.Length > 280)
@@ -62,7 +62,7 @@ public sealed class SocialPost
             throw new ArgumentException("Post content must be 280 characters or fewer.", nameof(content));
         }
 
-        return new SocialPost(Guid.NewGuid(), authorHandle.Trim(), content.Trim(), null, originalPostId, DateTimeOffset.UtcNow, null);
+        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), null, originalPostId, DateTimeOffset.UtcNow, null);
     }
 
     public static SocialPost Rehydrate(
@@ -85,16 +85,16 @@ public sealed class SocialPost
         {
             Validate(authorHandle, content, media ?? Array.Empty<PostMediaItem>());
         }
-        else if (string.IsNullOrWhiteSpace(authorHandle) || !authorHandle.StartsWith('@'))
+        else if (string.IsNullOrWhiteSpace(NormalizeHandle(authorHandle)))
         {
-            throw new ArgumentException("Author handle must start with @.", nameof(authorHandle));
+            throw new ArgumentException("Author handle is required.", nameof(authorHandle));
         }
         else if (content.Length > 280)
         {
             throw new ArgumentException("Post content must be 280 characters or fewer.", nameof(content));
         }
 
-        var post = new SocialPost(id, authorHandle.Trim(), content.Trim(), parentPostId, originalPostId, createdAt, media)
+        var post = new SocialPost(id, NormalizeHandle(authorHandle), content.Trim(), parentPostId, originalPostId, createdAt, media)
         {
             IsDeleted = isDeleted
         };
@@ -109,19 +109,20 @@ public sealed class SocialPost
 
     public void AddLike(string handle)
     {
-        if (string.IsNullOrWhiteSpace(handle) || !handle.StartsWith('@'))
+        var normalizedHandle = NormalizeHandle(handle);
+        if (string.IsNullOrWhiteSpace(normalizedHandle))
         {
-            throw new ArgumentException("Handle must start with @.", nameof(handle));
+            throw new ArgumentException("Handle is required.", nameof(handle));
         }
 
-        _likedBy.Add(handle);
+        _likedBy.Add(normalizedHandle);
     }
 
-    public void DeleteLike(string handle) => _likedBy.Remove(handle);
+    public void DeleteLike(string handle) => _likedBy.Remove(NormalizeHandle(handle));
 
     public void DeleteBy(string requesterHandle)
     {
-        if (!string.Equals(AuthorHandle, requesterHandle, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(AuthorHandle, NormalizeHandle(requesterHandle), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Only the author can delete the post.");
         }
@@ -131,9 +132,9 @@ public sealed class SocialPost
 
     private static void Validate(string authorHandle, string content, IReadOnlyList<PostMediaItem> media)
     {
-        if (string.IsNullOrWhiteSpace(authorHandle) || !authorHandle.StartsWith('@'))
+        if (string.IsNullOrWhiteSpace(NormalizeHandle(authorHandle)))
         {
-            throw new ArgumentException("Author handle must start with @.", nameof(authorHandle));
+            throw new ArgumentException("Author handle is required.", nameof(authorHandle));
         }
 
         if (string.IsNullOrWhiteSpace(content) && media.Count == 0)
@@ -164,4 +165,7 @@ public sealed class SocialPost
             throw new ArgumentException("Initial policy does not allow mixing video and images.", nameof(media));
         }
     }
+
+    public static string NormalizeHandle(string handle) =>
+        handle.Trim().TrimStart('@').Trim();
 }
