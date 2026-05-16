@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using SocialApp.User.ResponseModels;
 using SocialApp.User.UseCases;
 using SocialApp.User.ViewModels;
@@ -102,11 +103,13 @@ public sealed class ViewUserPresenter : IViewUserOutputBoundary
             UserPresenterMapping.ToProfileImageViewModel(response.ProfileImage),
             response.Posts.Select(ToViewModel).ToArray());
 
+    private static readonly Regex MentionPattern = new(@"@([a-zA-Z0-9_]+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
     private static ViewUserPostSummaryViewModel ToViewModel(ViewUserPostSummaryResponse post) =>
         new(
             post.Id,
             post.AuthorHandle,
-            post.Content,
+            SegmentContent(post.Content, post.Mentions),
             post.ParentPostId,
             post.OriginalPostId,
             post.CreatedAt,
@@ -129,6 +132,25 @@ public sealed class ViewUserPresenter : IViewUserOutputBoundary
                 m.ThumbnailKey,
                 m.AltText,
                 m.MediaUrl)).ToArray() ?? Array.Empty<ViewUserPostMediaSummaryViewModel>());
+
+    private static IReadOnlyList<UserPostContentSegment> SegmentContent(string content, IReadOnlyList<string>? mentions)
+    {
+        var segments = new List<UserPostContentSegment>();
+        var sequence = 0;
+        var lastIndex = 0;
+        var mentionSet = new HashSet<string>(mentions ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in MentionPattern.Matches(content))
+        {
+            if (match.Index > lastIndex)
+                segments.Add(new(sequence++, content[lastIndex..match.Index], null));
+            var handle = match.Groups[1].Value;
+            segments.Add(new(sequence++, match.Value, mentionSet.Contains(handle) ? handle : null));
+            lastIndex = match.Index + match.Length;
+        }
+        if (lastIndex < content.Length)
+            segments.Add(new(sequence, content[lastIndex..], null));
+        return segments;
+    }
 }
 
 internal static class UserPresenterMapping

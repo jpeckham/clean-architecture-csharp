@@ -37,6 +37,7 @@ public static class DependencyInjection
                 database.GetCollection<PasswordResetTokenDocument>(options.PasswordResetTokensCollectionName));
         });
 
+        services.AddSingleton<IAccountHandleGateway, CosmosMongoAccountHandleGateway>();
         services.AddSingleton<IUserGateway, CosmosMongoUserGateway>();
         services.AddSingleton<ICredentialsGateway, Pbkdf2CredentialsGateway>();
         services.AddSingleton<ISessionGateway, CosmosMongoSessionGateway>();

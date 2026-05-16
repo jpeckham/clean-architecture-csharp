@@ -1,0 +1,21 @@
+@if (ContentSegments.Count > 0)
+{
+    <p>
+        @foreach (var segment in ContentSegments)
+        {
+            if (segment.MentionHandle is not null)
+            {
+                <a class="mention-link" href="/users/@Uri.EscapeDataString(segment.MentionHandle)">@segment.Text</a>
+            }
+            else
+            {
+                @segment.Text
+            }
+        }
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SocialApp.Web.Services.PostContentSegmentResult> ContentSegments { get; set; } = Array.Empty<SocialApp.Web.Services.PostContentSegmentResult>();
+}

@@ -216,10 +216,11 @@ public sealed record PostMediaSummaryResult(
     string? ThumbnailKey,
     string? AltText,
     string? MediaUrl);
+public sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle);
 public sealed record PostSummaryResult(
     Guid Id,
     string AuthorHandle,
-    string Content,
+    IReadOnlyList<PostContentSegmentResult> ContentSegments,
     Guid? ParentPostId,
     Guid? OriginalPostId,
     DateTimeOffset CreatedAt,

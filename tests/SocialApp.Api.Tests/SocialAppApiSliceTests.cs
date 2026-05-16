@@ -713,10 +713,11 @@ public sealed class SocialAppApiSliceTests
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
     private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
     private sealed record PostMediaSummaryResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
+    private sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle);
     private sealed record PostSummaryResult(
         Guid Id,
         string AuthorHandle,
-        string Content,
+        IReadOnlyList<PostContentSegmentResult> ContentSegments,
         Guid? ParentPostId,
         Guid? OriginalPostId,
         int LikeCount,
@@ -724,5 +725,8 @@ public sealed class SocialAppApiSliceTests
         int RepostCount,
         bool RepostedByCurrentReader,
         QuotedPostSummaryResult? QuotedPost,
-        IReadOnlyList<PostMediaSummaryResult> Media);
+        IReadOnlyList<PostMediaSummaryResult> Media)
+    {
+        public string Content => string.Concat(ContentSegments.Select(s => s.Text));
+    }
 }

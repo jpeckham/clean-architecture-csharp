@@ -1,5 +1,7 @@
 namespace SocialApp.User.ViewModels;
 
+public sealed record UserPostContentSegment(int Sequence, string Text, string? MentionHandle);
+
 public sealed record CreateAccountViewModel(bool Succeeded, string Message, string? Handle, string? SessionToken);
 public sealed record RegisterAccountViewModel(bool Succeeded, string Message);
 public sealed record VerifyRegistrationViewModel(bool Succeeded, string Message);
@@ -32,7 +34,7 @@ public sealed record ViewUserPostMediaSummaryViewModel(
 public sealed record ViewUserPostSummaryViewModel(
     Guid Id,
     string AuthorHandle,
-    string Content,
+    IReadOnlyList<UserPostContentSegment> ContentSegments,
     Guid? ParentPostId,
     Guid? OriginalPostId,
     DateTimeOffset CreatedAt,

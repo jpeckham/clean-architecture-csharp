@@ -5,13 +5,18 @@ using SocialApp.Post.ResponseModels;
 
 namespace SocialApp.Post.UseCases;
 
-public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBoundary output, IPostMediaStorageGateway? mediaStorage = null) : ICreatePostInputBoundary
+public sealed class CreatePostInteractor(IPostGateway posts, ICreatePostOutputBoundary output, IPostMediaStorageGateway? mediaStorage = null, IAccountHandleGateway? accounts = null) : ICreatePostInputBoundary
 {
     public void Handle(CreatePostRequest request)
     {
         var media = ResolveMedia(request);
-        output.Present(new(true, PostMessageKeys.PostCreated, PostSummaryProjection.ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content, media)))));
+        var mentions = ResolveMentions(request.Content);
+        output.Present(new(true, PostMessageKeys.PostCreated, PostSummaryProjection.ToSummary(posts.Save(SocialPost.Create(request.AuthorHandle, request.Content, media, mentions)))));
     }
+
+    private string[] ResolveMentions(string content) =>
+        accounts is null ? Array.Empty<string>()
+        : SocialPost.ExtractMentionHandles(content).Where(accounts.Exists).ToArray();
 
     private IReadOnlyList<PostMediaItem> ResolveMedia(CreatePostRequest request)
     {
@@ -138,17 +143,19 @@ public sealed class DeleteLikeFromPostInteractor(IPostGateway posts, IDeleteLike
     }
 }
 
-public sealed class ReplyToPostInteractor(IPostGateway posts, IReplyToPostOutputBoundary output) : IReplyToPostInputBoundary
+public sealed class ReplyToPostInteractor(IPostGateway posts, IReplyToPostOutputBoundary output, IAccountHandleGateway? accounts = null) : IReplyToPostInputBoundary
 {
     public void Handle(ReplyToPostRequest request)
     {
         if (posts.FindById(request.ParentPostId) is null) { output.Present(new(false, PostMessageKeys.ParentPostNotFound, null)); return; }
-        var reply = posts.Save(SocialPost.ReplyTo(request.ParentPostId, request.AuthorHandle, request.Content));
+        var mentions = accounts is null ? Array.Empty<string>()
+            : SocialPost.ExtractMentionHandles(request.Content).Where(accounts.Exists).ToArray();
+        var reply = posts.Save(SocialPost.ReplyTo(request.ParentPostId, request.AuthorHandle, request.Content, mentions));
         output.Present(new(true, PostMessageKeys.ReplyCreated, PostSummaryProjection.ToSummary(reply)));
     }
 }
 
-public sealed class RepostInteractor(IPostGateway posts, IRepostOutputBoundary output) : IRepostInputBoundary
+public sealed class RepostInteractor(IPostGateway posts, IRepostOutputBoundary output, IAccountHandleGateway? accounts = null) : IRepostInputBoundary
 {
     public void Handle(RepostRequest request)
     {
@@ -171,7 +178,9 @@ public sealed class RepostInteractor(IPostGateway posts, IRepostOutputBoundary o
             throw new InvalidOperationException("Users can repost a post only once.");
         }
 
-        var repost = posts.Save(SocialPost.Repost(targetPost.Id, request.AuthorHandle, request.Content));
+        var mentions = accounts is null ? Array.Empty<string>()
+            : SocialPost.ExtractMentionHandles(request.Content).Where(accounts.Exists).ToArray();
+        var repost = posts.Save(SocialPost.Repost(targetPost.Id, request.AuthorHandle, request.Content, mentions));
         output.Present(new(true, PostMessageKeys.RepostCreated, PostSummaryProjection.ToSummary(repost, posts, request.AuthorHandle)));
     }
 }

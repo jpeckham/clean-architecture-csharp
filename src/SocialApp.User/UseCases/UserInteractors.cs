@@ -348,7 +348,8 @@ public sealed class ViewUserInteractor(IUserGateway users, IUserProfilePostGatew
                 m.DurationMs,
                 m.SortOrder,
                 m.ThumbnailKey,
-                m.AltText)).ToArray() ?? Array.Empty<ViewUserPostMediaSummaryResponse>());
+                m.AltText)).ToArray() ?? Array.Empty<ViewUserPostMediaSummaryResponse>(),
+            post.Mentions?.ToArray());
 }
 
 internal static class UserResponseMapping

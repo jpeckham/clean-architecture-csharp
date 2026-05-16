@@ -115,10 +115,7 @@
                                 <PostMediaGrid Media="item.QuotedPost.Media" />
                             </div>
                         }
-                        @if (!string.IsNullOrWhiteSpace(item.Content))
-                        {
-                            <p>@item.Content</p>
-                        }
+                        <PostContent ContentSegments="@item.ContentSegments" />
                         <PostMediaGrid Media="@item.Media" />
                         <div class="post-actions">
                             <button

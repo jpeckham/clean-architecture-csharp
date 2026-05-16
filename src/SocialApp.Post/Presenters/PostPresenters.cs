@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using SocialApp.Post.Entities;
 using SocialApp.Post.ResponseModels;
 using SocialApp.Post.UseCases;
 using SocialApp.Post.ViewModels;
@@ -24,10 +26,12 @@ public sealed class SearchPostsPresenter : ISearchPostsOutputBoundary
 
 internal static class PostPresenterMapping
 {
+    private static readonly Regex MentionPattern = new(@"@([a-zA-Z0-9_]+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
     public static PostSummaryViewModel ToViewModel(PostSummaryResponse p) => new(
         p.Id,
         p.AuthorHandle,
-        p.Content,
+        SegmentContent(p.Content, p.Mentions),
         p.ParentPostId,
         p.OriginalPostId,
         p.CreatedAt,
@@ -48,6 +52,25 @@ internal static class PostPresenterMapping
             m.ThumbnailKey,
             m.AltText,
             null)).ToArray() ?? Array.Empty<PostMediaSummaryViewModel>());
+
+    internal static IReadOnlyList<PostContentSegment> SegmentContent(string content, IReadOnlyList<string>? mentions)
+    {
+        var segments = new List<PostContentSegment>();
+        var sequence = 0;
+        var lastIndex = 0;
+        var mentionSet = new HashSet<string>(mentions ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in MentionPattern.Matches(content))
+        {
+            if (match.Index > lastIndex)
+                segments.Add(new(sequence++, content[lastIndex..match.Index], null));
+            var handle = match.Groups[1].Value;
+            segments.Add(new(sequence++, match.Value, mentionSet.Contains(handle) ? handle : null));
+            lastIndex = match.Index + match.Length;
+        }
+        if (lastIndex < content.Length)
+            segments.Add(new(sequence, content[lastIndex..], null));
+        return segments;
+    }
 }
 
 public sealed class FollowUserPostsPresenter : IFollowUserPostsOutputBoundary

@@ -88,10 +88,7 @@
                                     <PostMediaGrid Media="item.QuotedPost.Media" />
                                 </div>
                             }
-                            @if (!string.IsNullOrWhiteSpace(item.Content))
-                            {
-                                <p>@item.Content</p>
-                            }
+                            <PostContent ContentSegments="@item.ContentSegments" />
                             <PostMediaGrid Media="@item.Media" />
                             <div class="post-actions">
                                 <span class="heart-button @(item.LikedByCurrentReader ? "liked" : null)" aria-label="Likes">@(item.LikedByCurrentReader ? "\u2665" : "\u2661")</span>

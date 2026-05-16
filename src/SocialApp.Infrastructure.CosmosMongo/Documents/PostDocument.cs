@@ -19,6 +19,7 @@ public sealed class PostDocument
     public bool IsDeleted { get; init; }
     public string[] LikedBy { get; init; } = Array.Empty<string>();
     public PostMediaDocument[] Media { get; init; } = Array.Empty<PostMediaDocument>();
+    public string[] Mentions { get; init; } = Array.Empty<string>();
 }
 
 public sealed class PostMediaDocument

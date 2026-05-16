@@ -2,6 +2,23 @@ using SocialApp.Post.Entities;
 
 namespace SocialApp.Post.Gateways;
 
+public interface IAccountHandleGateway
+{
+    bool Exists(string handle);
+}
+
+public sealed class InMemoryAccountHandleGateway : IAccountHandleGateway
+{
+    private readonly HashSet<string> _handles;
+
+    public InMemoryAccountHandleGateway(IEnumerable<string>? knownHandles = null)
+    {
+        _handles = new HashSet<string>(knownHandles ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    public bool Exists(string handle) => _handles.Contains(SocialPost.NormalizeHandle(handle));
+}
+
 public interface IPostGateway
 {
     SocialPost Save(SocialPost post);

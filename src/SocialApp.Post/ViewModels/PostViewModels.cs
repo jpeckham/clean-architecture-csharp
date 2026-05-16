@@ -1,5 +1,6 @@
 namespace SocialApp.Post.ViewModels;
 
+public sealed record PostContentSegment(int Sequence, string Text, string? MentionHandle);
 public sealed record QuotedPostSummaryViewModel(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryViewModel>? Media = null);
 public sealed record PostMediaSummaryViewModel(
     Guid AssetId,
@@ -16,7 +17,7 @@ public sealed record PostMediaSummaryViewModel(
 public sealed record PostSummaryViewModel(
     Guid Id,
     string AuthorHandle,
-    string Content,
+    IReadOnlyList<PostContentSegment> ContentSegments,
     Guid? ParentPostId,
     Guid? OriginalPostId,
     DateTimeOffset CreatedAt,

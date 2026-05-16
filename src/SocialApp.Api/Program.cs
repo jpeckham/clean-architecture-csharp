@@ -27,6 +27,7 @@ else
     builder.Services.AddSingleton<InMemoryPostGateway>();
     builder.Services.AddSingleton<IPostGateway>(sp => sp.GetRequiredService<InMemoryPostGateway>());
     builder.Services.AddSingleton<IPostSearchGateway, InMemoryPostSearchGateway>();
+    builder.Services.AddSingleton<IAccountHandleGateway, UserGatewayAccountHandleAdapter>();
     builder.Services.AddSingleton<IClock, SystemClock>();
     builder.Services.AddSingleton<IPendingRegistrationGateway, InMemoryPendingRegistrationGateway>();
     builder.Services.AddSingleton<IVerificationCodeGateway, InMemoryVerificationCodeGateway>();

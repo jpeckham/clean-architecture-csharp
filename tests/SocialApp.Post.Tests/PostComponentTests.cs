@@ -441,7 +441,7 @@ public sealed class PostComponentTests
 
         var repostView = presenter.ViewModel.Posts.Single(p => p.AuthorHandle == "grace");
         var repost = posts.FindById(repostView.Id)!;
-        repostView.Content.Should().Be("Grace take");
+        string.Concat(repostView.ContentSegments.Select(s => s.Text)).Should().Be("Grace take");
         repostView.CreatedAt.Should().Be(repost.CreatedAt);
         repostView.OriginalPostId.Should().Be(original.Id);
         repostView.QuotedPost.Should().NotBeNull();
