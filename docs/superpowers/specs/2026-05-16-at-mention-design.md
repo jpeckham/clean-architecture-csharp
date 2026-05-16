@@ -92,7 +92,7 @@ No migration is required — existing documents without the field deserialize to
 
 The segmentation of content into typed segments is a Presenter concern (Interface Adapters). Placing it in the server-side Presenter means it is tested as a server-side business concern and is portable to any view (web, mobile, etc.). Pushing it into the web layer would remove it from the testable surface.
 
-`SocialApp.Web` has no project reference to `SocialApp.Post`. The solution is not to move the logic into the web layer — it is to serialize the ViewModel's `ContentSegments` as JSON with a type discriminator and define parallel DTO types in `SocialApp.Web` for deserialization. The logic and its tests remain on the server.
+`SocialApp.Web` has no project reference to `SocialApp.Post`. The solution is not to move the logic into the web layer — it is to serialize the ViewModel's `ContentSegments` as JSON (flat objects, no special configuration required) and define a parallel DTO type in `SocialApp.Web` for deserialization. The logic and its tests remain on the server.
 
 ### Server-side segment type (`SocialApp.Post.ViewModels`)
 
