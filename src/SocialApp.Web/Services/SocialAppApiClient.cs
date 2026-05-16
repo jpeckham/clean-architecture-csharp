@@ -118,6 +118,16 @@ public sealed class SocialAppApiClient(HttpClient http)
         return await ReadAsync<SimpleResult>(await http.SendAsync(message));
     }
 
+    public async Task<CreatePostResult?> ReplyToPostAsync(string sessionToken, Guid postId, ReplyPostRequest request)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"/api/posts/{postId}/replies")
+        {
+            Content = JsonContent.Create(request)
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<CreatePostResult>(await http.SendAsync(message));
+    }
+
     public async Task<RecentPostsResult?> GetRecentPostsAsync(string sessionToken, int limit = 20)
     {
         using var message = new HttpRequestMessage(HttpMethod.Get, $"/api/posts/recent?limit={limit}");
@@ -198,6 +208,7 @@ public sealed record VerifyDeviceOtpRequest(string Handle, string DeviceId, stri
 public sealed record RequestPasswordResetRequest(string Email);
 public sealed record ResetPasswordRequest(string Token, string NewPassword);
 public sealed record CreatePostRequest(string Content, IReadOnlyList<Guid>? MediaAssetIds = null);
+public sealed record ReplyPostRequest(string Content);
 public sealed record RepostPostRequest(string Content);
 public sealed record BeginPostMediaUploadRequest(string Kind, string ContentType, long ByteLength, int? Width = null, int? Height = null, long? DurationMs = null, string? AltText = null);
 public sealed record AuthResult(bool Succeeded, string Message, string? Handle, string? SessionToken);
@@ -236,5 +247,8 @@ public sealed record PostSummaryResult(
     bool LikedByCurrentReader,
     int RepostCount,
     bool RepostedByCurrentReader,
+    int ReplyCount,
+    IReadOnlyList<PostSummaryResult> RecentReplies,
+    QuotedPostSummaryResult? ReplyTarget,
     QuotedPostSummaryResult? QuotedPost,
     IReadOnlyList<PostMediaSummaryResult>? Media = null);

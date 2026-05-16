@@ -25,6 +25,9 @@ public sealed record PostSummaryViewModel(
     bool LikedByCurrentReader,
     int RepostCount,
     bool RepostedByCurrentReader,
+    int ReplyCount,
+    IReadOnlyList<PostSummaryViewModel> RecentReplies,
+    QuotedPostSummaryViewModel? ReplyTarget,
     QuotedPostSummaryViewModel? QuotedPost,
     IReadOnlyList<PostMediaSummaryViewModel>? Media = null);
 public sealed record CreatePostViewModel(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);

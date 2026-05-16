@@ -28,6 +28,20 @@
             <PostMediaGrid Media="Item.QuotedPost.Media" />
         </div>
     }
+    @if (Item.ReplyTarget is not null)
+    {
+        <div class="quoted-post reply-target">
+            <div class="post-author-line">
+                <a class="author-link" href="@UserUrl(Item.ReplyTarget.AuthorHandle)" @onclick:stopPropagation="true">@Item.ReplyTarget.AuthorHandle</a>
+                <time class="post-time" datetime="@Item.ReplyTarget.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.ReplyTarget.CreatedAt)</time>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Item.ReplyTarget.Content))
+            {
+                <p>@Item.ReplyTarget.Content</p>
+            }
+            <PostMediaGrid Media="Item.ReplyTarget.Media" />
+        </div>
+    }
     <PostContent ContentSegments="@Item.ContentSegments" />
     <PostMediaGrid Media="@Item.Media" />
     <div class="post-actions" @onclick:stopPropagation="true">
@@ -51,7 +65,31 @@
             <span aria-hidden="true">@("\u27f3")</span>
         </button>
         <span class="repost-count">@Item.RepostCount</span>
+        <button
+            type="button"
+            class="reply-button @(ActiveReplyPostId == Item.Id ? "replying" : null)"
+            aria-label="Reply to post"
+            title="Reply to post"
+            @onclick="ToggleReplyAsync"
+            disabled="@IsBusy">
+            <span aria-hidden="true">@("\u21a9")</span>
+        </button>
+        <span class="reply-count">@Item.ReplyCount</span>
     </div>
+    @if (ActiveReplyPostId == Item.Id)
+    {
+        <div class="reply-composer" @onclick:stopPropagation="true">
+            <div class="reply-input-row">
+                <span class="reply-prefix">@($"@{Item.AuthorHandle}")</span>
+                <InputTextArea Value="@ReplyContent" ValueChanged="ReplyContentChanged" ValueExpression="() => ReplyContent" placeholder="Write a reply..." />
+            </div>
+            <div class="reply-composer-actions">
+                <button type="button" class="compact" @onclick="ReplyAsync" disabled="@IsBusy">Reply</button>
+                <button type="button" class="secondary compact" @onclick="CancelReplyAsync" disabled="@IsBusy">Cancel</button>
+            </div>
+        </div>
+    }
+    <ThreadReplies Replies="Item.RecentReplies" OpenRequested="OpenRequested" />
     @if (ActiveRepostPostId == Item.Id && !Item.RepostedByCurrentReader)
     {
         <div class="repost-composer" @onclick:stopPropagation="true">
@@ -87,6 +125,15 @@
     public EventCallback<string> RepostContentChanged { get; set; }
 
     [Parameter]
+    public Guid? ActiveReplyPostId { get; set; }
+
+    [Parameter]
+    public string ReplyContent { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> ReplyContentChanged { get; set; }
+
+    [Parameter]
     public EventCallback<SocialApp.Web.Services.PostSummaryResult> OpenRequested { get; set; }
 
     [Parameter]
@@ -107,6 +154,15 @@
     [Parameter]
     public EventCallback RepostCanceled { get; set; }
 
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> ReplyToggled { get; set; }
+
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> ReplySubmitted { get; set; }
+
+    [Parameter]
+    public EventCallback ReplyCanceled { get; set; }
+
     private bool CanDelete =>
         string.Equals(Item.AuthorHandle, CurrentHandle, StringComparison.OrdinalIgnoreCase);
 
@@ -123,6 +179,9 @@
     private Task ShareAsync() => ShareRequested.InvokeAsync(Item);
     private Task DeleteAsync() => DeleteRequested.InvokeAsync(Item);
     private Task LikeAsync() => LikeToggled.InvokeAsync(Item);
+    private Task ToggleReplyAsync() => ReplyToggled.InvokeAsync(Item);
+    private Task ReplyAsync() => ReplySubmitted.InvokeAsync(Item);
+    private Task CancelReplyAsync() => ReplyCanceled.InvokeAsync();
     private Task ToggleRepostAsync() => RepostToggled.InvokeAsync(Item);
     private Task RepostAsync() => RepostSubmitted.InvokeAsync(Item);
     private Task CancelRepostAsync() => RepostCanceled.InvokeAsync();

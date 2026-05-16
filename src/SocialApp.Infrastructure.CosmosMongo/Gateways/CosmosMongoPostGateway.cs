@@ -32,6 +32,16 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
     public int CountActiveReposts(Guid originalPostId) =>
         (int)_posts.CountDocuments(p => !p.IsDeleted && p.OriginalPostId == originalPostId);
 
+    public int CountReplies(Guid parentPostId) =>
+        (int)_posts.CountDocuments(p => !p.IsDeleted && p.ParentPostId == parentPostId);
+
+    public IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit) =>
+        _posts.Find(p => !p.IsDeleted && p.ParentPostId == parentPostId).ToList()
+            .OrderByDescending(p => p.CreatedAt)
+            .Take(limit)
+            .Select(CosmosMongoMappers.ToEntity)
+            .ToArray();
+
     public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit)
     {
         var normalizedReaderHandle = SocialPost.NormalizeHandle(readerHandle);

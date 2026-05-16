@@ -25,6 +25,8 @@ public interface IPostGateway
     SocialPost? FindById(Guid id);
     SocialPost? FindActiveRepost(Guid originalPostId, string authorHandle);
     int CountActiveReposts(Guid originalPostId);
+    int CountReplies(Guid parentPostId);
+    IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit);
     IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit);
     IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit);
     void Follow(string readerHandle, string followedHandle);
@@ -91,6 +93,15 @@ public sealed class InMemoryPostGateway : IPostGateway
 
     public int CountActiveReposts(Guid originalPostId) =>
         _posts.Count(p => !p.IsDeleted && p.OriginalPostId == originalPostId);
+
+    public int CountReplies(Guid parentPostId) =>
+        _posts.Count(p => !p.IsDeleted && p.ParentPostId == parentPostId);
+
+    public IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit) =>
+        _posts.Where(p => !p.IsDeleted && p.ParentPostId == parentPostId)
+            .OrderByDescending(p => p.CreatedAt)
+            .Take(limit)
+            .ToArray();
 
     public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit)
     {

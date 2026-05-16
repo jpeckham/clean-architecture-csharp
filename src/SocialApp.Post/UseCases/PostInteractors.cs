@@ -98,7 +98,7 @@ public sealed class DisplayPostInteractor(IPostGateway posts, IDisplayPostOutput
         var post = posts.FindById(request.PostId);
         output.Present(post is null || post.IsDeleted
             ? new(false, PostMessageKeys.PostNotFound, null)
-            : new(true, PostMessageKeys.PostFound, PostSummaryProjection.ToSummary(post, posts, request.ReaderHandle)));
+            : new(true, PostMessageKeys.PostFound, PostSummaryProjection.ToFocusedThreadSummary(post, posts, request.ReaderHandle)));
     }
 }
 
@@ -159,12 +159,42 @@ public sealed class ReplyToPostInteractor(IPostGateway posts, IReplyToPostOutput
 {
     public void Handle(ReplyToPostRequest request)
     {
-        if (posts.FindById(request.ParentPostId) is null) { output.Present(new(false, PostMessageKeys.ParentPostNotFound, null)); return; }
-        var mentions = accounts is null ? Array.Empty<string>()
-            : SocialPost.ExtractMentionHandles(request.Content).Where(accounts.Exists).ToArray();
-        var hashtags = SocialPost.ExtractHashtags(request.Content).ToArray();
-        var reply = posts.Save(SocialPost.ReplyTo(request.ParentPostId, request.AuthorHandle, request.Content, mentions, hashtags));
-        output.Present(new(true, PostMessageKeys.ReplyCreated, PostSummaryProjection.ToSummary(reply)));
+        var parent = posts.FindById(request.ParentPostId);
+        if (parent is null || parent.IsDeleted) { output.Present(new(false, PostMessageKeys.ParentPostNotFound, null)); return; }
+
+        var content = PrefixedReplyContent(parent.AuthorHandle, request.Content);
+        var mentions = ResolveReplyMentions(parent.AuthorHandle, content);
+        var hashtags = SocialPost.ExtractHashtags(content).ToArray();
+        var reply = posts.Save(SocialPost.ReplyTo(request.ParentPostId, request.AuthorHandle, content, mentions, hashtags));
+        output.Present(new(true, PostMessageKeys.ReplyCreated, PostSummaryProjection.ToSummary(reply, posts, request.AuthorHandle)));
+    }
+
+    private string[] ResolveReplyMentions(string parentAuthorHandle, string content)
+    {
+        var mentions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            SocialPost.NormalizeHandle(parentAuthorHandle)
+        };
+
+        if (accounts is not null)
+        {
+            foreach (var handle in SocialPost.ExtractMentionHandles(content).Where(accounts.Exists))
+            {
+                mentions.Add(handle);
+            }
+        }
+
+        return mentions.ToArray();
+    }
+
+    private static string PrefixedReplyContent(string parentAuthorHandle, string content)
+    {
+        var prefix = $"@{SocialPost.NormalizeHandle(parentAuthorHandle)}";
+        var body = content.Trim();
+        return body.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
+            body.StartsWith($"{prefix} ", StringComparison.OrdinalIgnoreCase)
+            ? body
+            : string.IsNullOrWhiteSpace(body) ? prefix : $"{prefix} {body}";
     }
 }
 

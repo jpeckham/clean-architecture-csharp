@@ -97,10 +97,16 @@
                         ActiveRepostPostId="@activeRepostPostId"
                         RepostContent="@repostContent"
                         RepostContentChanged="value => repostContent = value"
+                        ActiveReplyPostId="@activeReplyPostId"
+                        ReplyContent="@replyContent"
+                        ReplyContentChanged="value => replyContent = value"
                         OpenRequested="OpenPost"
                         ShareRequested="SharePostAsync"
                         DeleteRequested="DeletePostAsync"
                         LikeToggled="ToggleLikeAsync"
+                        ReplyToggled="ToggleReplyComposerAsync"
+                        ReplySubmitted="ReplyAsync"
+                        ReplyCanceled="CancelReply"
                         RepostToggled="ToggleRepostComposerAsync"
                         RepostSubmitted="RepostAsync"
                         RepostCanceled="CancelRepost" />
@@ -124,6 +130,8 @@
     private string? mediaMessage;
     private Guid? activeRepostPostId;
     private string repostContent = string.Empty;
+    private Guid? activeReplyPostId;
+    private string replyContent = string.Empty;
     private bool isBusy;
     private bool isUploadingMedia;
 
@@ -380,6 +388,40 @@
 
         activeRepostPostId = activeRepostPostId == item.Id ? null : item.Id;
         repostContent = string.Empty;
+        activeReplyPostId = null;
+        replyContent = string.Empty;
+    }
+
+    private void ToggleReplyComposerAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        activeReplyPostId = activeReplyPostId == item.Id ? null : item.Id;
+        replyContent = string.Empty;
+        activeRepostPostId = null;
+        repostContent = string.Empty;
+    }
+
+    private async Task ReplyAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var result = await Api.ReplyToPostAsync(Session.SessionToken!, item.Id, new(replyContent));
+            message = result?.Message ?? "Reply failed.";
+            activeReplyPostId = null;
+            replyContent = string.Empty;
+            await RefreshCurrentPostsAsync();
+        });
+    }
+
+    private void CancelReply()
+    {
+        activeReplyPostId = null;
+        replyContent = string.Empty;
     }
 
     private async Task RepostAsync(SocialApp.Web.Services.PostSummaryResult item)

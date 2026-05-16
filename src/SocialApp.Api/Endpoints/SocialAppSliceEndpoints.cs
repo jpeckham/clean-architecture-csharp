@@ -43,6 +43,7 @@ public static class SocialAppSliceEndpoints
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
         endpoints.MapPost("/api/posts/{postId:guid}/likes", AddLikeToPost);
         endpoints.MapDelete("/api/posts/{postId:guid}/likes", DeleteLikeFromPost);
+        endpoints.MapPost("/api/posts/{postId:guid}/replies", ReplyToPost);
         endpoints.MapPost("/api/posts/{postId:guid}/reposts", RepostPost);
         endpoints.MapDelete("/api/posts/{postId:guid}/reposts/mine", DeleteMyRepost);
         endpoints.MapGet("/api/posts/search", SearchPosts);
@@ -638,6 +639,37 @@ public static class SocialAppSliceEndpoints
             : Results.NotFound(presenter.ViewModel);
     }
 
+    private static IResult ReplyToPost(ReplyPostHttpRequest request, Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts, IAccountHandleGateway accounts)
+    {
+        var token = ReadBearerToken(httpRequest);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = sessions.FindByToken(token);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var presenter = new ReplyToPostPresenter();
+        var controller = new ReplyToPostController(new ReplyToPostInteractor(posts, presenter, accounts));
+
+        try
+        {
+            controller.Reply(postId, user.Handle, request.Content ?? string.Empty);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { succeeded = false, message = ex.Message });
+        }
+
+        return presenter.ViewModel is { Succeeded: true, Id: not null } viewModel
+            ? Results.Created($"/api/posts/{viewModel.Id}", viewModel)
+            : Results.NotFound(presenter.ViewModel);
+    }
+
     private static IResult RepostPost(RepostPostHttpRequest request, Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts, IAccountHandleGateway accounts)
     {
         var token = ReadBearerToken(httpRequest);
@@ -798,6 +830,9 @@ public static class SocialAppSliceEndpoints
             post.LikedByCurrentReader,
             post.RepostCount,
             post.RepostedByCurrentReader,
+            post.ReplyCount,
+            post.RecentReplies.Select(ToHttpPostSummary).ToArray(),
+            post.ReplyTarget is null ? null : new(post.ReplyTarget.Id, post.ReplyTarget.AuthorHandle, post.ReplyTarget.Content, post.ReplyTarget.CreatedAt, post.ReplyTarget.Media?.Select(ToHttpPostMedia).ToArray()),
             post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt, post.QuotedPost.Media?.Select(ToHttpPostMedia).ToArray()),
             post.Media?.Select(ToHttpPostMedia).ToArray() ?? Array.Empty<PostMediaSummaryHttpResult>());
 
@@ -849,6 +884,6 @@ public static class SocialAppSliceEndpoints
     private sealed record IndividualPostHttpResult(bool Succeeded, string Message, PostSummaryHttpResult? Post);
     private sealed record QuotedPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryHttpResult>? Media = null);
     private sealed record PostMediaSummaryHttpResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
-    private sealed record PostSummaryHttpResult(Guid Id, string AuthorHandle, IReadOnlyList<PostContentSegmentHttpResult> ContentSegments, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
+    private sealed record PostSummaryHttpResult(Guid Id, string AuthorHandle, IReadOnlyList<PostContentSegmentHttpResult> ContentSegments, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, int ReplyCount, IReadOnlyList<PostSummaryHttpResult> RecentReplies, QuotedPostSummaryHttpResult? ReplyTarget, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
     private sealed record UserPostSummaryHttpResult(Guid Id, string AuthorHandle, IReadOnlyList<PostContentSegmentHttpResult> ContentSegments, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
 }

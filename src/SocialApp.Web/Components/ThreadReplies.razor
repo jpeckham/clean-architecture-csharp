@@ -1,0 +1,67 @@
+@using System.Globalization
+
+@if ((Replies?.Count ?? 0) > 0)
+{
+    <section class="thread-preview" @onclick:stopPropagation="true">
+        @foreach (var reply in Replies!)
+        {
+            <article class="thread-reply clickable-thread-reply" role="link" tabindex="0" @onclick="() => OpenReplyAsync(reply)" @onkeydown="args => HandleReplyKeyDownAsync(args, reply)">
+                <div class="post-author-line">
+                    <a class="author-link" href="@UserUrl(reply.AuthorHandle)" @onclick:stopPropagation="true">@reply.AuthorHandle</a>
+                    <time class="post-time" datetime="@reply.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(reply.CreatedAt)</time>
+                </div>
+                <PostContent ContentSegments="@reply.ContentSegments" />
+                <ThreadReplies Replies="reply.RecentReplies" OpenRequested="OpenRequested" />
+            </article>
+        }
+    </section>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<SocialApp.Web.Services.PostSummaryResult>? Replies { get; set; }
+
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> OpenRequested { get; set; }
+
+    private Task OpenReplyAsync(SocialApp.Web.Services.PostSummaryResult reply) =>
+        OpenRequested.InvokeAsync(reply);
+
+    private async Task HandleReplyKeyDownAsync(KeyboardEventArgs args, SocialApp.Web.Services.PostSummaryResult reply)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            await OpenReplyAsync(reply);
+        }
+    }
+
+    private static string UserUrl(string handle) => $"/users/{Uri.EscapeDataString(handle)}";
+
+    private static string FormatTimestamp(DateTimeOffset createdAt)
+    {
+        var local = createdAt.ToLocalTime();
+        var culture = CultureInfo.CurrentCulture;
+        if (!culture.Name.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return local.ToString("f", culture);
+        }
+
+        return $"{local.ToString("MMMM", culture)} {local.Day}{OrdinalSuffix(local.Day)}, {local.ToString("yyyy h:mm tt", culture)}";
+    }
+
+    private static string OrdinalSuffix(int day)
+    {
+        if (day is 11 or 12 or 13)
+        {
+            return "th";
+        }
+
+        return (day % 10) switch
+        {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th"
+        };
+    }
+}

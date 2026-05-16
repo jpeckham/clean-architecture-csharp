@@ -57,6 +57,14 @@ public sealed class WebConfigurationTests
     }
 
     [Fact]
+    public void Web_client_exposes_reply_method()
+    {
+        typeof(Services.SocialAppApiClient)
+            .GetMethod("ReplyToPostAsync", new[] { typeof(string), typeof(Guid), typeof(Services.ReplyPostRequest) })
+            .Should().NotBeNull();
+    }
+
+    [Fact]
     public void Feed_uses_shared_post_card_component_for_post_actions()
     {
         typeof(Components.PostCard).Should().NotBeNull();
@@ -64,6 +72,29 @@ public sealed class WebConfigurationTests
         var root = FindRepositoryRoot();
         var feed = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "Feed.razor"));
         feed.Should().Contain("<PostCard");
+    }
+
+    [Fact]
+    public void Post_card_renders_reply_action_and_thread_preview()
+    {
+        var root = FindRepositoryRoot();
+        var postCard = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "PostCard.razor"));
+
+        postCard.Should().Contain("Reply");
+        postCard.Should().Contain("reply-prefix");
+        postCard.Should().Contain("RecentReplies");
+    }
+
+    [Fact]
+    public void Thread_replies_component_renders_nested_replies()
+    {
+        typeof(Components.ThreadReplies).Should().NotBeNull();
+
+        var root = FindRepositoryRoot();
+        var threadReplies = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "ThreadReplies.razor"));
+
+        threadReplies.Should().Contain("<ThreadReplies");
+        threadReplies.Should().Contain("Replies=\"reply.RecentReplies\"");
     }
 
     [Fact]

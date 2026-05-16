@@ -261,6 +261,19 @@ public sealed class CosmosMongoMappingTests
                 .Select(CosmosMongoMappers.ToEntity)
                 .Count(post => !post.IsDeleted && post.OriginalPostId == originalPostId);
 
+        public int CountReplies(Guid parentPostId) =>
+            _posts.Values
+                .Select(CosmosMongoMappers.ToEntity)
+                .Count(post => !post.IsDeleted && post.ParentPostId == parentPostId);
+
+        public IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit) =>
+            _posts.Values
+                .Select(CosmosMongoMappers.ToEntity)
+                .Where(post => !post.IsDeleted && post.ParentPostId == parentPostId)
+                .OrderByDescending(post => post.CreatedAt)
+                .Take(limit)
+                .ToArray();
+
         public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit) =>
             _posts.Values
                 .Select(CosmosMongoMappers.ToEntity)
