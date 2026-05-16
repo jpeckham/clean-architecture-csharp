@@ -110,7 +110,7 @@ The Presenter segments content when building the ViewModel — consistent with t
 
 ### JSON serialization
 
-`PostContentSegment` uses `[JsonDerivedType]` attributes (System.Text.Json) to serialize with a `$type` discriminator. The API endpoint serializes the ViewModel including `ContentSegments` as a typed JSON array.
+`PostContentSegment` and its subtypes carry no framework attributes — they are plain C# records. A custom `JsonConverter<PostContentSegment>` registered in `SocialApp.Api/Program.cs` handles the type discriminator on the way out. Serialization is a Framework & Drivers concern and belongs entirely in the outermost ring.
 
 ### Web-local DTO types (`SocialApp.Web`)
 
