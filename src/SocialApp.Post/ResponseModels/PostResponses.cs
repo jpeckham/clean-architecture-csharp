@@ -22,7 +22,7 @@ public static class PostMessageKeys
     public const string PostMediaAssetNotFound = "POST_MEDIA_ASSET_NOT_FOUND";
 }
 
-public sealed record QuotedPostSummaryResponse(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record QuotedPostSummaryResponse(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryResponse>? Media = null);
 public sealed record PostMediaSummaryResponse(
     Guid AssetId,
     string Kind,

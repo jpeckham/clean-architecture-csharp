@@ -16,7 +16,7 @@ public sealed record ProfileImageViewModel(Guid AssetId, string StorageKey, stri
 public sealed record BeginProfileImageUploadViewModel(bool Succeeded, string Message, Guid? AssetId, string? UploadUrl);
 public sealed record CompleteProfileImageUploadViewModel(bool Succeeded, string Message, ProfileImageViewModel? ProfileImage);
 public sealed record RemoveProfileImageViewModel(bool Succeeded, string Message);
-public sealed record ViewUserQuotedPostSummaryViewModel(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record ViewUserQuotedPostSummaryViewModel(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<ViewUserPostMediaSummaryViewModel>? Media = null);
 public sealed record ViewUserPostMediaSummaryViewModel(
     Guid AssetId,
     string Kind,

@@ -203,7 +203,7 @@ public sealed record ProfileImageUploadResult(bool Succeeded, string Message, Pr
 public sealed record ProfileImageSummaryResult(Guid AssetId, string StorageKey, string ContentType, long ByteLength, int? Width, int? Height, DateTimeOffset UploadedAt, string ImageUrl);
 public sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
 public sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
-public sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryResult>? Media = null);
 public sealed record PostMediaSummaryResult(
     Guid AssetId,
     string Kind,

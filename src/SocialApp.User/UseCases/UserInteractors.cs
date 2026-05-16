@@ -337,7 +337,7 @@ public sealed class ViewUserInteractor(IUserGateway users, IUserProfilePostGatew
             post.RepostedByCurrentReader,
             post.QuotedPost is null
                 ? null
-                : new ViewUserQuotedPostSummaryResponse(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt),
+                : new ViewUserQuotedPostSummaryResponse(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt, post.QuotedPost.Media?.Select(m => new ViewUserPostMediaSummaryResponse(m.AssetId, m.Kind, m.ContentType, m.ByteLength, m.Width, m.Height, m.DurationMs, m.SortOrder, m.ThumbnailKey, m.AltText)).ToArray()),
             post.Media?.Select(m => new ViewUserPostMediaSummaryResponse(
                 m.AssetId,
                 m.Kind,

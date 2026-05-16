@@ -86,7 +86,7 @@ public sealed record CompleteReservedProfileImageUpload(Guid AssetId, string Own
 public sealed record ProfileImageUploadReservation(Guid AssetId, string StorageKey, string UploadUrl);
 public sealed record ReservedProfileImageUpload(Guid AssetId, string OwnerHandle, string StorageKey, string ContentType, long ByteLength);
 public sealed record StoredProfileImage(string ContentType, Stream Content);
-public sealed record UserProfileQuotedPostSummary(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record UserProfileQuotedPostSummary(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<UserProfilePostMediaSummary>? Media = null);
 public sealed record UserProfilePostMediaSummary(
     Guid AssetId,
     string Kind,

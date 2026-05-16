@@ -773,11 +773,12 @@ public static class SocialAppSliceEndpoints
             post.Content,
             post.ParentPostId,
             post.OriginalPostId,
+            post.CreatedAt,
             post.LikeCount,
             post.LikedByCurrentReader,
             post.RepostCount,
             post.RepostedByCurrentReader,
-            post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content),
+            post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt, post.QuotedPost.Media?.Select(ToHttpPostMedia).ToArray()),
             post.Media?.Select(ToHttpPostMedia).ToArray() ?? Array.Empty<PostMediaSummaryHttpResult>());
 
     private static UserPostSummaryHttpResult ToHttpUserPostSummary(ViewUserPostSummaryViewModel post) =>
@@ -787,11 +788,12 @@ public static class SocialAppSliceEndpoints
             post.Content,
             post.ParentPostId,
             post.OriginalPostId,
+            post.CreatedAt,
             post.LikeCount,
             post.LikedByCurrentReader,
             post.RepostCount,
             post.RepostedByCurrentReader,
-            post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content),
+            post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt, post.QuotedPost.Media?.Select(ToHttpUserPostMedia).ToArray()),
             post.Media?.Select(ToHttpUserPostMedia).ToArray() ?? Array.Empty<PostMediaSummaryHttpResult>());
 
     private static PostMediaSummaryHttpResult ToHttpPostMedia(PostMediaSummaryViewModel media) =>
@@ -823,8 +825,8 @@ public static class SocialAppSliceEndpoints
             media.MediaUrl ?? $"/api/post-media/{media.AssetId}");
 
     private sealed record PostsHttpResult(IReadOnlyList<PostSummaryHttpResult> Posts);
-    private sealed record QuotedPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content);
+    private sealed record QuotedPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryHttpResult>? Media = null);
     private sealed record PostMediaSummaryHttpResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
-    private sealed record PostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
-    private sealed record UserPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
+    private sealed record PostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
+    private sealed record UserPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
 }

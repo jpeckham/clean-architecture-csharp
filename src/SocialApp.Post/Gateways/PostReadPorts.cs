@@ -40,7 +40,7 @@ internal static class PostSummaryProjection
             normalizedReaderHandle is not null && post.LikedBy.Contains(normalizedReaderHandle),
             posts?.CountActiveReposts(repostTargetId) ?? 0,
             normalizedReaderHandle is not null && posts?.FindActiveRepost(repostTargetId, normalizedReaderHandle) is not null,
-            originalPost is null ? null : new(originalPost.Id, originalPost.AuthorHandle, originalPost.Content, originalPost.CreatedAt),
+            originalPost is null ? null : new(originalPost.Id, originalPost.AuthorHandle, originalPost.Content, originalPost.CreatedAt, originalPost.Media.Select(ToMediaSummary).ToArray()),
             post.Media.Select(ToMediaSummary).ToArray());
     }
 

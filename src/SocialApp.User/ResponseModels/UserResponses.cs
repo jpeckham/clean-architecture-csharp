@@ -42,7 +42,7 @@ public sealed record ProfileImageUploadResponse(Guid AssetId, string StorageKey,
 public sealed record BeginProfileImageUploadResponse(bool Succeeded, string MessageKey, ProfileImageUploadResponse? Upload);
 public sealed record CompleteProfileImageUploadResponse(bool Succeeded, string MessageKey, ProfileImageResponse? ProfileImage);
 public sealed record RemoveProfileImageResponse(bool Succeeded, string MessageKey);
-public sealed record ViewUserQuotedPostSummaryResponse(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record ViewUserQuotedPostSummaryResponse(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<ViewUserPostMediaSummaryResponse>? Media = null);
 public sealed record ViewUserPostMediaSummaryResponse(
     Guid AssetId,
     string Kind,

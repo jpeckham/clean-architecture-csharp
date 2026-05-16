@@ -116,7 +116,7 @@ public sealed class ViewUserPresenter : IViewUserOutputBoundary
             post.RepostedByCurrentReader,
             post.QuotedPost is null
                 ? null
-                : new ViewUserQuotedPostSummaryViewModel(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt),
+                : new ViewUserQuotedPostSummaryViewModel(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt, post.QuotedPost.Media?.Select(m => new ViewUserPostMediaSummaryViewModel(m.AssetId, m.Kind, m.ContentType, m.ByteLength, m.Width, m.Height, m.DurationMs, m.SortOrder, m.ThumbnailKey, m.AltText)).ToArray()),
             post.Media?.Select(m => new ViewUserPostMediaSummaryViewModel(
                 m.AssetId,
                 m.Kind,

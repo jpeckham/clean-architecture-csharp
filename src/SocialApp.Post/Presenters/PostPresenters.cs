@@ -35,7 +35,7 @@ internal static class PostPresenterMapping
         p.LikedByCurrentReader,
         p.RepostCount,
         p.RepostedByCurrentReader,
-        p.QuotedPost is null ? null : new(p.QuotedPost.Id, p.QuotedPost.AuthorHandle, p.QuotedPost.Content, p.QuotedPost.CreatedAt),
+        p.QuotedPost is null ? null : new(p.QuotedPost.Id, p.QuotedPost.AuthorHandle, p.QuotedPost.Content, p.QuotedPost.CreatedAt, p.QuotedPost.Media?.Select(m => new PostMediaSummaryViewModel(m.AssetId, m.Kind, m.ContentType, m.ByteLength, m.Width, m.Height, m.DurationMs, m.SortOrder, m.ThumbnailKey, m.AltText, null)).ToArray()),
         p.Media?.Select(m => new PostMediaSummaryViewModel(
             m.AssetId,
             m.Kind,

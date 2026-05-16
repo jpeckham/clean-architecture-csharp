@@ -108,7 +108,11 @@
                                     <a class="author-link" href="@UserUrl(item.QuotedPost.AuthorHandle)">@item.QuotedPost.AuthorHandle</a>
                                     <time class="post-time" datetime="@item.QuotedPost.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(item.QuotedPost.CreatedAt)</time>
                                 </div>
-                                <p>@item.QuotedPost.Content</p>
+                                @if (!string.IsNullOrWhiteSpace(item.QuotedPost.Content))
+                                {
+                                    <p>@item.QuotedPost.Content</p>
+                                }
+                                <PostMediaGrid Media="item.QuotedPost.Media" />
                             </div>
                         }
                         @if (!string.IsNullOrWhiteSpace(item.Content))

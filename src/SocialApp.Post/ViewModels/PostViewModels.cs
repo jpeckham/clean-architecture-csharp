@@ -1,6 +1,6 @@
 namespace SocialApp.Post.ViewModels;
 
-public sealed record QuotedPostSummaryViewModel(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt);
+public sealed record QuotedPostSummaryViewModel(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryViewModel>? Media = null);
 public sealed record PostMediaSummaryViewModel(
     Guid AssetId,
     string Kind,
