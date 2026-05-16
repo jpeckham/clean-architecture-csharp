@@ -68,7 +68,8 @@ public static class CosmosMongoMappers
             ThumbnailKey = item.ThumbnailKey,
             AltText = item.AltText
         }).ToArray(),
-        Mentions = post.Mentions.ToArray()
+        Mentions = post.Mentions.ToArray(),
+        Hashtags = post.Hashtags.ToArray()
     };
 
     public static SocialPost ToEntity(PostDocument document) =>
@@ -82,7 +83,8 @@ public static class CosmosMongoMappers
             document.IsDeleted,
             document.LikedBy,
             (document.Media ?? Array.Empty<PostMediaDocument>()).Select(ToPostMediaItem).ToArray(),
-            document.Mentions);
+            document.Mentions,
+            document.Hashtags);
 
     private static PostMediaItem ToPostMediaItem(PostMediaDocument document) =>
         new(
