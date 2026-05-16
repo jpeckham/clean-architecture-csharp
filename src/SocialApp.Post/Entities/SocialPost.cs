@@ -5,9 +5,11 @@ namespace SocialApp.Post.Entities;
 public sealed class SocialPost
 {
     private static readonly Regex MentionPattern = new(@"@([a-zA-Z0-9_]+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+    private static readonly Regex HashtagPattern = new(@"#(\S+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private readonly HashSet<string> _likedBy = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _mentions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _hashtags = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PostMediaItem> _media = new();
 
     private SocialPost(
@@ -18,7 +20,8 @@ public sealed class SocialPost
         Guid? originalPostId,
         DateTimeOffset createdAt,
         IEnumerable<PostMediaItem>? media,
-        IEnumerable<string>? mentions)
+        IEnumerable<string>? mentions,
+        IEnumerable<string>? hashtags)
     {
         Id = id;
         AuthorHandle = authorHandle;
@@ -29,6 +32,8 @@ public sealed class SocialPost
         _media.AddRange(media ?? Array.Empty<PostMediaItem>());
         foreach (var handle in mentions ?? Enumerable.Empty<string>())
             _mentions.Add(handle);
+        foreach (var tag in hashtags ?? Enumerable.Empty<string>())
+            _hashtags.Add(tag);
     }
 
     public Guid Id { get; }
@@ -40,26 +45,27 @@ public sealed class SocialPost
     public bool IsDeleted { get; private set; }
     public IReadOnlyCollection<string> LikedBy => _likedBy;
     public IReadOnlyCollection<string> Mentions => _mentions;
+    public IReadOnlyCollection<string> Hashtags => _hashtags;
     public IReadOnlyList<PostMediaItem> Media => _media;
 
-    public static SocialPost Create(string authorHandle, string content, IEnumerable<string>? mentions = null)
+    public static SocialPost Create(string authorHandle, string content, IEnumerable<string>? mentions = null, IEnumerable<string>? hashtags = null)
     {
-        return Create(authorHandle, content, Array.Empty<PostMediaItem>(), mentions);
+        return Create(authorHandle, content, Array.Empty<PostMediaItem>(), mentions, hashtags);
     }
 
-    public static SocialPost Create(string authorHandle, string content, IReadOnlyList<PostMediaItem> media, IEnumerable<string>? mentions = null)
+    public static SocialPost Create(string authorHandle, string content, IReadOnlyList<PostMediaItem> media, IEnumerable<string>? mentions = null, IEnumerable<string>? hashtags = null)
     {
         Validate(authorHandle, content, media);
-        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), null, null, DateTimeOffset.UtcNow, media, mentions);
+        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), null, null, DateTimeOffset.UtcNow, media, mentions, hashtags);
     }
 
-    public static SocialPost ReplyTo(Guid parentPostId, string authorHandle, string content, IEnumerable<string>? mentions = null)
+    public static SocialPost ReplyTo(Guid parentPostId, string authorHandle, string content, IEnumerable<string>? mentions = null, IEnumerable<string>? hashtags = null)
     {
         Validate(authorHandle, content, Array.Empty<PostMediaItem>());
-        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), parentPostId, null, DateTimeOffset.UtcNow, null, mentions);
+        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), parentPostId, null, DateTimeOffset.UtcNow, null, mentions, hashtags);
     }
 
-    public static SocialPost Repost(Guid originalPostId, string authorHandle, string content = "", IEnumerable<string>? mentions = null)
+    public static SocialPost Repost(Guid originalPostId, string authorHandle, string content = "", IEnumerable<string>? mentions = null, IEnumerable<string>? hashtags = null)
     {
         if (string.IsNullOrWhiteSpace(NormalizeHandle(authorHandle)))
         {
@@ -71,11 +77,14 @@ public sealed class SocialPost
             throw new ArgumentException("Post content must be 280 characters or fewer.", nameof(content));
         }
 
-        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), null, originalPostId, DateTimeOffset.UtcNow, null, mentions);
+        return new SocialPost(Guid.NewGuid(), NormalizeHandle(authorHandle), content.Trim(), null, originalPostId, DateTimeOffset.UtcNow, null, mentions, hashtags);
     }
 
     public static IEnumerable<string> ExtractMentionHandles(string content) =>
         MentionPattern.Matches(content).Select(m => m.Groups[1].Value);
+
+    public static IEnumerable<string> ExtractHashtags(string content) =>
+        HashtagPattern.Matches(content).Select(m => m.Groups[1].Value);
 
     public static SocialPost Rehydrate(
         Guid id,
@@ -87,7 +96,8 @@ public sealed class SocialPost
         bool isDeleted,
         IEnumerable<string> likedBy,
         IReadOnlyList<PostMediaItem>? media = null,
-        IEnumerable<string>? mentions = null)
+        IEnumerable<string>? mentions = null,
+        IEnumerable<string>? hashtags = null)
     {
         if (id == Guid.Empty)
         {
@@ -107,7 +117,7 @@ public sealed class SocialPost
             throw new ArgumentException("Post content must be 280 characters or fewer.", nameof(content));
         }
 
-        var post = new SocialPost(id, NormalizeHandle(authorHandle), content.Trim(), parentPostId, originalPostId, createdAt, media, mentions)
+        var post = new SocialPost(id, NormalizeHandle(authorHandle), content.Trim(), parentPostId, originalPostId, createdAt, media, mentions, hashtags)
         {
             IsDeleted = isDeleted
         };

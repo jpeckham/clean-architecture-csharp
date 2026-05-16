@@ -466,6 +466,32 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void Post_entity_extracts_hashtags_from_content()
+    {
+        var tags = SocialPost.ExtractHashtags("Hello #world and #csharp").ToArray();
+        tags.Should().BeEquivalentTo(new[] { "world", "csharp" });
+    }
+
+    [Fact]
+    public void Post_entity_stores_hashtags_provided_at_creation()
+    {
+        var post = SocialPost.Create("@ada", "Hello #world", hashtags: new[] { "world" });
+        post.Hashtags.Should().ContainSingle().Which.Should().Be("world");
+    }
+
+    [Fact]
+    public void Post_rehydration_preserves_hashtags()
+    {
+        var original = SocialPost.Create("@ada", "Hello #world", hashtags: new[] { "world" });
+        var rehydrated = SocialPost.Rehydrate(
+            original.Id, original.AuthorHandle, original.Content,
+            original.ParentPostId, original.OriginalPostId, original.CreatedAt,
+            original.IsDeleted, original.LikedBy, original.Media.ToArray(),
+            original.Mentions, original.Hashtags);
+        rehydrated.Hashtags.Should().ContainSingle().Which.Should().Be("world");
+    }
+
+    [Fact]
     public void Delete_post_rejects_non_author_and_keeps_post_visible()
     {
         var posts = new InMemoryPostGateway();
