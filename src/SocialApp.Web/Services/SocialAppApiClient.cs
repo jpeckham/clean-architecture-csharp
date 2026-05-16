@@ -216,7 +216,7 @@ public sealed record PostMediaSummaryResult(
     string? ThumbnailKey,
     string? AltText,
     string? MediaUrl);
-public sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle);
+public sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle, string? HashtagText = null);
 public sealed record PostSummaryResult(
     Guid Id,
     string AuthorHandle,

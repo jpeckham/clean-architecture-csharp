@@ -7,6 +7,10 @@
             {
                 <a class="mention-link" href="/users/@Uri.EscapeDataString(segment.MentionHandle)">@segment.Text</a>
             }
+            else if (segment.HashtagText is not null)
+            {
+                <a class="hashtag-link" href="/search?tag=@Uri.EscapeDataString(segment.HashtagText)">@segment.Text</a>
+            }
             else
             {
                 @segment.Text
