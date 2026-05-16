@@ -70,13 +70,13 @@ The `RepostInteractor` applies this to the optional comment content added by the
 
 `PostSummaryResponse` gains `IReadOnlyList<string> Mentions`.
 
-`PostSummaryViewModel` gains `IReadOnlyList<string> Mentions`.
+`PostSummaryViewModel` gains `IReadOnlyList<PostContentSegment> ContentSegments` in place of a raw `Content` string (see Section 5). `Mentions` is not surfaced on the ViewModel — it is consumed by the Presenter to produce `ContentSegments` and does not need to travel further.
 
 `PostSummaryProjection.ToSummary` passes `post.Mentions` through to the response model.
 
-`PostSummaryResult` in `SocialApp.Web.Services.SocialAppApiClient` gains `IReadOnlyList<string> Mentions` so the web layer receives validated mentions from the API.
+`PostSummaryResult` in `SocialApp.Web.Services.SocialAppApiClient` gains `IReadOnlyList<PostContentSegmentResult> ContentSegments` (web-local DTO types that mirror the server ViewModel, deserialized from JSON — see Section 5). `Mentions` is not needed on the web DTO.
 
-`QuotedPostSummaryResponse` and `QuotedPostSummaryViewModel` do **not** gain `Mentions` — the quoted post is display-only and rendering mention links inside a quoted post preview is out of scope.
+`QuotedPostSummaryResponse` and `QuotedPostSummaryViewModel` do **not** gain `Mentions` or `ContentSegments` — the quoted post is display-only and rendering mention links inside a quoted post preview is out of scope.
 
 ### Persistence
 
@@ -90,11 +90,11 @@ No migration is required — existing documents without the field deserialize to
 
 ## Section 5: Presentation — Segmented Content
 
-`SocialApp.Web` has no project reference to `SocialApp.Post` (it calls the API over HTTP only). Segment types defined in `SocialApp.Post.ViewModels` cannot be used directly by the web layer. Segmentation therefore happens in the web layer using web-local types, applying the Humble Object pattern within that layer: all logic lives in a dedicated class, the Razor component renders only.
+The segmentation of content into typed segments is a Presenter concern (Interface Adapters). Placing it in the server-side Presenter means it is tested as a server-side business concern and is portable to any view (web, mobile, etc.). Pushing it into the web layer would remove it from the testable surface.
 
-### Web-local segment types
+`SocialApp.Web` has no project reference to `SocialApp.Post`. The solution is not to move the logic into the web layer — it is to serialize the ViewModel's `ContentSegments` as JSON with a type discriminator and define parallel DTO types in `SocialApp.Web` for deserialization. The logic and its tests remain on the server.
 
-Defined in `SocialApp.Web`:
+### Server-side segment types (`SocialApp.Post.ViewModels`)
 
 ```csharp
 public abstract record PostContentSegment;
@@ -102,30 +102,38 @@ public sealed record TextSegment(string Text) : PostContentSegment;
 public sealed record MentionSegment(string Handle) : PostContentSegment;
 ```
 
-### Segmenter
+`PostSummaryViewModel` gains `IReadOnlyList<PostContentSegment> ContentSegments`.
 
-`PostContentSegmenter` — a static class in `SocialApp.Web.Services`:
+### Presenter (`PostPresenters.cs`)
+
+The Presenter segments content when building the ViewModel — consistent with the Humble Object pattern. It calls `SocialPost.ExtractMentionHandles(response.Content)` to identify token positions, checks each handle against `response.Mentions`, and emits typed segments. The resulting `ContentSegments` list fully represents the renderable content; no further parsing is needed by any consumer.
+
+### JSON serialization
+
+`PostContentSegment` uses `[JsonDerivedType]` attributes (System.Text.Json) to serialize with a `$type` discriminator. The API endpoint serializes the ViewModel including `ContentSegments` as a typed JSON array.
+
+### Web-local DTO types (`SocialApp.Web`)
 
 ```csharp
-public static IReadOnlyList<PostContentSegment> Segment(string content, IReadOnlyList<string> mentions)
+public sealed record PostContentSegmentResult(string Type, string? Text, string? Handle);
 ```
 
-It scans `content` for `@word` tokens using the same regex as the entity (`@[a-zA-Z0-9_]+`). For each token whose normalized handle appears in `mentions`, it emits a `MentionSegment`. All surrounding text becomes `TextSegment`. This class is the testable logic layer; it contains no rendering.
+`PostSummaryResult` gains `IReadOnlyList<PostContentSegmentResult> ContentSegments`. The JSON deserializer maps the server's polymorphic array into these flat DTOs via the `$type` field.
 
 ### Razor component
 
 A new `PostContent.razor` component in `SocialApp.Web` accepts:
 
-- `ContentSegments` — `IReadOnlyList<PostContentSegment>`
+- `ContentSegments` — `IReadOnlyList<PostContentSegmentResult>`
 
-It iterates the segments and renders:
-- `TextSegment` → inline text node
-- `MentionSegment` → `<a href="/users/{handle}">@handle</a>`
+It iterates the segments and renders based on `Type`:
+- `"text"` → inline text node (`segment.Text`)
+- `"mention"` → `<a href="/users/{handle}">@handle</a>` (`segment.Handle`)
 
 The component contains no parsing logic. `Feed.razor` and `UserProfile.razor` replace their bare `<p>@item.Content</p>` with:
 
 ```razor
-<PostContent ContentSegments="@PostContentSegmenter.Segment(item.Content, item.Mentions)" />
+<PostContent ContentSegments="@item.ContentSegments" />
 ```
 
 ---
