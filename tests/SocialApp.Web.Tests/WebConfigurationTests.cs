@@ -86,6 +86,18 @@ public sealed class WebConfigurationTests
     }
 
     [Fact]
+    public void Post_card_makes_quoted_context_posts_navigable()
+    {
+        var root = FindRepositoryRoot();
+        var postCard = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "PostCard.razor"));
+
+        postCard.Should().Contain("clickable-quoted-post");
+        postCard.Should().Contain("OpenQuotedPostAsync(Item.QuotedPost)");
+        postCard.Should().Contain("OpenQuotedPostAsync(Item.ReplyTarget)");
+        postCard.Should().Contain("HandleQuotedPostKeyDownAsync");
+    }
+
+    [Fact]
     public void Thread_replies_component_renders_nested_replies()
     {
         typeof(Components.ThreadReplies).Should().NotBeNull();

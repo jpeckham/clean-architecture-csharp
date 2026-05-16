@@ -16,7 +16,7 @@
     </div>
     @if (Item.QuotedPost is not null)
     {
-        <div class="quoted-post">
+        <div class="quoted-post clickable-quoted-post" role="link" tabindex="0" @onclick="() => OpenQuotedPostAsync(Item.QuotedPost)" @onclick:stopPropagation="true" @onkeydown="args => HandleQuotedPostKeyDownAsync(args, Item.QuotedPost)" @onkeydown:stopPropagation="true">
             <div class="post-author-line">
                 <a class="author-link" href="@UserUrl(Item.QuotedPost.AuthorHandle)" @onclick:stopPropagation="true">@Item.QuotedPost.AuthorHandle</a>
                 <time class="post-time" datetime="@Item.QuotedPost.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.QuotedPost.CreatedAt)</time>
@@ -30,7 +30,7 @@
     }
     @if (Item.ReplyTarget is not null)
     {
-        <div class="quoted-post reply-target">
+        <div class="quoted-post reply-target clickable-quoted-post" role="link" tabindex="0" @onclick="() => OpenQuotedPostAsync(Item.ReplyTarget)" @onclick:stopPropagation="true" @onkeydown="args => HandleQuotedPostKeyDownAsync(args, Item.ReplyTarget)" @onkeydown:stopPropagation="true">
             <div class="post-author-line">
                 <a class="author-link" href="@UserUrl(Item.ReplyTarget.AuthorHandle)" @onclick:stopPropagation="true">@Item.ReplyTarget.AuthorHandle</a>
                 <time class="post-time" datetime="@Item.ReplyTarget.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.ReplyTarget.CreatedAt)</time>
@@ -186,12 +186,47 @@
     private Task RepostAsync() => RepostSubmitted.InvokeAsync(Item);
     private Task CancelRepostAsync() => RepostCanceled.InvokeAsync();
 
+    private Task OpenQuotedPostAsync(SocialApp.Web.Services.QuotedPostSummaryResult quotedPost) =>
+        OpenRequested.InvokeAsync(ToPostSummary(quotedPost));
+
     private async Task HandleKeyDownAsync(KeyboardEventArgs args)
     {
         if (args.Key is "Enter" or " ")
         {
             await OpenPostAsync();
         }
+    }
+
+    private async Task HandleQuotedPostKeyDownAsync(KeyboardEventArgs args, SocialApp.Web.Services.QuotedPostSummaryResult quotedPost)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            await OpenQuotedPostAsync(quotedPost);
+        }
+    }
+
+    private static SocialApp.Web.Services.PostSummaryResult ToPostSummary(SocialApp.Web.Services.QuotedPostSummaryResult quotedPost)
+    {
+        var contentSegments = string.IsNullOrWhiteSpace(quotedPost.Content)
+            ? Array.Empty<SocialApp.Web.Services.PostContentSegmentResult>()
+            : new[] { new SocialApp.Web.Services.PostContentSegmentResult(0, quotedPost.Content, null) };
+
+        return new(
+            quotedPost.Id,
+            quotedPost.AuthorHandle,
+            contentSegments,
+            null,
+            null,
+            quotedPost.CreatedAt,
+            0,
+            false,
+            0,
+            false,
+            0,
+            Array.Empty<SocialApp.Web.Services.PostSummaryResult>(),
+            null,
+            null,
+            quotedPost.Media);
     }
 
     private static string UserUrl(string handle) => $"/users/{Uri.EscapeDataString(handle)}";

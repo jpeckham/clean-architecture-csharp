@@ -360,6 +360,16 @@ form {
     color: var(--muted);
 }
 
+.clickable-quoted-post {
+    cursor: pointer;
+}
+
+.clickable-quoted-post:hover,
+.clickable-quoted-post:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    outline: none;
+}
+
 .post-actions {
     align-items: center;
     border-top: 1px solid var(--border);
