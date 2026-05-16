@@ -9,7 +9,7 @@
             }
             else if (segment.HashtagText is not null)
             {
-                <a class="hashtag-link" href="/search?tag=@Uri.EscapeDataString(segment.HashtagText)">@segment.Text</a>
+                <a class="hashtag-link" href="/feed/search?query=@Uri.EscapeDataString($"#{segment.HashtagText}")">@segment.Text</a>
             }
             else
             {

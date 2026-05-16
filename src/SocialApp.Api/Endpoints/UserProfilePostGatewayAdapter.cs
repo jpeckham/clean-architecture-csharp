@@ -36,5 +36,6 @@ public sealed class UserProfilePostGatewayAdapter(IProfilePostSummaryReadPort po
                 m.SortOrder,
                 m.ThumbnailKey,
                 m.AltText)).ToArray() ?? Array.Empty<UserProfilePostMediaSummary>(),
-            post.Mentions?.ToArray());
+            post.Mentions?.ToArray(),
+            post.Hashtags?.ToArray());
 }

@@ -1,6 +1,6 @@
 namespace SocialApp.User.ViewModels;
 
-public sealed record UserPostContentSegment(int Sequence, string Text, string? MentionHandle);
+public sealed record UserPostContentSegment(int Sequence, string Text, string? MentionHandle, string? HashtagText = null);
 
 public sealed record CreateAccountViewModel(bool Succeeded, string Message, string? Handle, string? SessionToken);
 public sealed record RegisterAccountViewModel(bool Succeeded, string Message);

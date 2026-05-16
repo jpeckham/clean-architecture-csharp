@@ -200,6 +200,44 @@ public sealed class SocialAppApiSliceTests
     }
 
     [Fact]
+    public async Task Recent_posts_include_hashtag_segment_metadata()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Hello #amazing today" });
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        var result = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@ada&limit=20");
+
+        var post = result!.Posts.Single(p => p.Id == created!.Id);
+        post.ContentSegments.Should().ContainSingle(s =>
+            s.Text == "#amazing" &&
+            s.HashtagText == "amazing" &&
+            s.MentionHandle == null);
+    }
+
+    [Fact]
+    public async Task View_user_posts_include_hashtag_segment_metadata()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Profile #amazing today" });
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        var result = await client.GetFromJsonAsync<UserProfileResult>("/api/users/%40ada");
+
+        var post = result!.Posts.Single(p => p.Id == created!.Id);
+        post.ContentSegments.Should().ContainSingle(s =>
+            s.Text == "#amazing" &&
+            s.HashtagText == "amazing" &&
+            s.MentionHandle == null);
+    }
+
+    [Fact]
     public async Task View_user_returns_display_name_handle_and_recent_posts_for_authenticated_reader()
     {
         await using var factory = CreateInMemoryFactory();
@@ -713,7 +751,7 @@ public sealed class SocialAppApiSliceTests
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
     private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
     private sealed record PostMediaSummaryResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
-    private sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle);
+    private sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle, string? HashtagText = null);
     private sealed record PostSummaryResult(
         Guid Id,
         string AuthorHandle,

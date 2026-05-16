@@ -112,7 +112,8 @@ public sealed record UserProfilePostSummary(
     bool RepostedByCurrentReader,
     UserProfileQuotedPostSummary? QuotedPost,
     IReadOnlyList<UserProfilePostMediaSummary>? Media = null,
-    IReadOnlyList<string>? Mentions = null);
+    IReadOnlyList<string>? Mentions = null,
+    IReadOnlyList<string>? Hashtags = null);
 
 public sealed class SystemClock : IClock
 {

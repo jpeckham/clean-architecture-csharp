@@ -68,5 +68,6 @@ public sealed record ViewUserPostSummaryResponse(
     bool RepostedByCurrentReader,
     ViewUserQuotedPostSummaryResponse? QuotedPost,
     IReadOnlyList<ViewUserPostMediaSummaryResponse>? Media = null,
-    IReadOnlyList<string>? Mentions = null);
+    IReadOnlyList<string>? Mentions = null,
+    IReadOnlyList<string>? Hashtags = null);
 public sealed record ViewUserResponse(bool Succeeded, string MessageKey, string? Handle, string? DisplayName, ProfileImageResponse? ProfileImage, IReadOnlyList<ViewUserPostSummaryResponse> Posts);

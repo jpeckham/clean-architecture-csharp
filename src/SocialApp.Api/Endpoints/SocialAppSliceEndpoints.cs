@@ -770,7 +770,7 @@ public static class SocialAppSliceEndpoints
         new(
             post.Id,
             post.AuthorHandle,
-            post.ContentSegments.Select(s => new PostContentSegmentHttpResult(s.Sequence, s.Text, s.MentionHandle)).ToArray(),
+            post.ContentSegments.Select(s => new PostContentSegmentHttpResult(s.Sequence, s.Text, s.MentionHandle, s.HashtagText)).ToArray(),
             post.ParentPostId,
             post.OriginalPostId,
             post.CreatedAt,
@@ -785,7 +785,7 @@ public static class SocialAppSliceEndpoints
         new(
             post.Id,
             post.AuthorHandle,
-            post.ContentSegments.Select(s => new PostContentSegmentHttpResult(s.Sequence, s.Text, s.MentionHandle)).ToArray(),
+            post.ContentSegments.Select(s => new PostContentSegmentHttpResult(s.Sequence, s.Text, s.MentionHandle, s.HashtagText)).ToArray(),
             post.ParentPostId,
             post.OriginalPostId,
             post.CreatedAt,
@@ -824,7 +824,7 @@ public static class SocialAppSliceEndpoints
             media.AltText,
             media.MediaUrl ?? $"/api/post-media/{media.AssetId}");
 
-    private sealed record PostContentSegmentHttpResult(int Sequence, string Text, string? MentionHandle);
+    private sealed record PostContentSegmentHttpResult(int Sequence, string Text, string? MentionHandle, string? HashtagText = null);
     private sealed record PostsHttpResult(IReadOnlyList<PostSummaryHttpResult> Posts);
     private sealed record QuotedPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryHttpResult>? Media = null);
     private sealed record PostMediaSummaryHttpResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
