@@ -38,6 +38,7 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<IUserGateway, CosmosMongoUserGateway>();
+        services.AddSingleton<ICredentialsGateway, Pbkdf2CredentialsGateway>();
         services.AddSingleton<ISessionGateway, CosmosMongoSessionGateway>();
         services.AddSingleton<IPostGateway, CosmosMongoPostGateway>();
         services.AddSingleton<IPostSearchGateway, CosmosMongoPostGateway>();

@@ -11,66 +11,53 @@ namespace SocialApp.User.Tests;
 
 public sealed class UserComponentTests
 {
-    private static readonly IPasswordGateway Passwords = new Pbkdf2PasswordGateway();
-
     [Fact]
-    public void User_account_requires_valid_handle_and_opaque_password_hash()
+    public void User_account_requires_valid_handle_and_credentials()
     {
-        var account = UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!"));
+        var account = UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
 
         account.Handle.Should().Be("@ada");
-        account.PasswordHash.Should().NotBe("Correct9!");
-        account.PasswordHash.Should().StartWith("PBKDF2$");
-        Passwords.Verify("Correct9!", account.PasswordHash).Should().BeTrue();
-        Passwords.Verify("Wrong999!", account.PasswordHash).Should().BeFalse();
-        Action weakPassword = () => Passwords.Hash("weak");
-        weakPassword.Should().Throw<ArgumentException>().WithMessage("*Password*");
+        account.Credentials.Should().Be("Correct9!");
+        Action invalidCredentials = () => UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "");
+        invalidCredentials.Should().Throw<ArgumentException>().WithMessage("*Credentials*");
     }
 
     [Fact]
     public void User_account_can_be_rehydrated_from_persistence()
     {
         var id = Guid.NewGuid();
-        var account = UserAccount.Rehydrate(id, "Ada Lovelace", "@ada", "ada@example.com", "opaque-hash");
+        var account = UserAccount.Rehydrate(id, "Ada Lovelace", "@ada", "ada@example.com", "opaque-credentials");
 
         account.Id.Should().Be(id);
         account.Handle.Should().Be("@ada");
-        account.PasswordHash.Should().Be("opaque-hash");
+        account.Credentials.Should().Be("opaque-credentials");
     }
 
     [Fact]
-    public void Password_hash_can_be_rehydrated_without_rehashing()
+    public void Credentials_can_be_rehydrated_without_rewriting()
     {
-        var created = UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!"));
-        var storedHash = created.PasswordHash;
+        var created = UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        var storedCredentials = created.Credentials;
 
-        var account = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", storedHash);
+        var account = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", storedCredentials);
 
-        account.PasswordHash.Should().Be(storedHash);
-        Passwords.Verify("Correct9!", account.PasswordHash).Should().BeTrue();
-        Passwords.Verify("Wrong999!", account.PasswordHash).Should().BeFalse();
+        account.Credentials.Should().Be(storedCredentials);
     }
 
     [Fact]
-    public void Password_service_stores_new_non_reversible_hash()
+    public void User_account_can_change_credentials()
     {
-        var account = UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!"));
-        var originalHash = account.PasswordHash;
-        var changedHash = Passwords.Hash("Changed9!");
+        var account = UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
 
-        account.ChangePasswordHash(changedHash);
+        account.ChangeCredentials("Changed9!");
 
-        account.PasswordHash.Should().NotBe("Changed9!");
-        account.PasswordHash.Should().StartWith("PBKDF2$");
-        account.PasswordHash.Should().NotBe(originalHash);
-        Passwords.Verify("Correct9!", account.PasswordHash).Should().BeFalse();
-        Passwords.Verify("Changed9!", account.PasswordHash).Should().BeTrue();
+        account.Credentials.Should().Be("Changed9!");
     }
 
     [Fact]
     public void User_account_can_set_replace_and_remove_profile_image_metadata()
     {
-        var account = UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!"));
+        var account = UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
         var firstImage = new ProfileImage(
             Guid.NewGuid(),
             "profile-images/ada/first.jpg",
@@ -127,7 +114,7 @@ public sealed class UserComponentTests
     public void Profile_image_upload_flow_reserves_and_completes_owned_image_assets()
     {
         var users = new InMemoryUserGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
+        users.Save(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
         var storage = new InMemoryProfileImageStorageGateway();
 
         var beginPresenter = new BeginProfileImageUploadPresenter();
@@ -164,8 +151,8 @@ public sealed class UserComponentTests
     public void Profile_image_completion_and_removal_require_the_current_owner()
     {
         var users = new InMemoryUserGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
-        users.Save(UserAccount.CreateWithPasswordHash("Grace Hopper", "@grace", "grace@example.com", Passwords.Hash("NavyCode9!")));
+        users.Save(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
+        users.Save(UserAccount.CreateWithCredentials("Grace Hopper", "@grace", "grace@example.com", "NavyCode9!"));
         var storage = new InMemoryProfileImageStorageGateway();
         var beginPresenter = new BeginProfileImageUploadPresenter();
         new BeginProfileImageUploadController(new BeginProfileImageUploadInteractor(storage, beginPresenter))
@@ -192,7 +179,7 @@ public sealed class UserComponentTests
     public void Remove_profile_image_clears_metadata_for_the_owner()
     {
         var users = new InMemoryUserGateway();
-        var account = UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!"));
+        var account = UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
         account.SetProfileImage(new ProfileImage(Guid.NewGuid(), "profile-images/ada/avatar.jpg", "image/jpeg", 12_345, 800, 600, DateTimeOffset.UtcNow));
         users.Save(account);
 
@@ -204,13 +191,13 @@ public sealed class UserComponentTests
     }
 
     [Fact]
-    public void Legacy_plaintext_passwords_can_still_verify_during_migration()
+    public void In_memory_gateway_authenticates_against_credentials()
     {
-        var account = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        var users = new InMemoryUserGateway();
+        users.Save("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
 
-        account.PasswordHash.Should().Be("Correct9!");
-        Passwords.Verify("Correct9!", account.PasswordHash).Should().BeTrue();
-        Passwords.Verify("Wrong999!", account.PasswordHash).Should().BeFalse();
+        users.Authenticate("ada@example.com", "Correct9!").Should().NotBeNull();
+        users.Authenticate("ada@example.com", "Wrong999!").Should().BeNull();
     }
 
     [Fact]
@@ -219,7 +206,7 @@ public sealed class UserComponentTests
         var users = new InMemoryUserGateway();
         var sessions = new InMemorySessionGateway();
         var presenter = new CreateAccountPresenter();
-        var interactor = new CreateAccountInteractor(users, sessions, Passwords, presenter);
+        var interactor = new CreateAccountInteractor(users, sessions, presenter);
         var controller = new CreateAccountController(interactor);
 
         controller.Create("Grace Hopper", "@grace", "grace@example.com", "NavyCode9!");
@@ -238,36 +225,36 @@ public sealed class UserComponentTests
         var codes = new InMemoryVerificationCodeGateway();
         var email = new InMemoryEmailGateway();
         var presenter = new RegisterAccountPresenter();
-        var controller = new RegisterAccountController(new RegisterAccountInteractor(users, registrations, codes, email, Passwords, presenter));
+        var controller = new RegisterAccountController(new RegisterAccountInteractor(users, registrations, codes, email, presenter));
 
         controller.Register("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
 
         presenter.ViewModel!.Succeeded.Should().BeTrue();
-        registrations.FindByEmail("ada@example.com")!.PasswordHash.Should().NotBe("Correct9!");
-        registrations.FindByEmail("ada@example.com")!.PasswordHash.Should().StartWith("PBKDF2$");
+        registrations.FindByEmail("ada@example.com")!.Credentials.Should().Be("Correct9!");
         users.FindByHandle("@ada").Should().BeNull();
         email.Sent.Should().ContainSingle(m => m.To == "ada@example.com" && m.Subject.Contains("Verify", StringComparison.OrdinalIgnoreCase));
 
         var verifyPresenter = new VerifyRegistrationPresenter();
-        new VerifyRegistrationController(new VerifyRegistrationInteractor(users, registrations, codes, Passwords, verifyPresenter))
+        new VerifyRegistrationController(new VerifyRegistrationInteractor(users, registrations, codes, verifyPresenter))
             .Verify("ada@example.com", codes.FindActiveCode("ada@example.com")!);
 
         verifyPresenter.ViewModel!.Succeeded.Should().BeTrue();
         users.FindByHandle("@ada").Should().NotBeNull();
+        users.Authenticate("ada@example.com", "Correct9!").Should().NotBeNull();
     }
 
     [Fact]
     public void Login_for_unremembered_device_sends_email_otp_then_verifies_device()
     {
         var users = new InMemoryUserGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
+        users.Save(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
         var sessions = new InMemorySessionGateway();
         var devices = new InMemoryRememberedDeviceGateway();
         var otps = new InMemoryVerificationCodeGateway();
         var email = new InMemoryEmailGateway();
 
         var loginPresenter = new LoginWithDevicePresenter();
-        new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, otps, email, Passwords, loginPresenter))
+        new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, otps, email, loginPresenter))
             .Login("ada@example.com", "Correct9!", "browser-1");
 
         loginPresenter.ViewModel!.OtpRequired.Should().BeTrue();
@@ -281,7 +268,7 @@ public sealed class UserComponentTests
         otpPresenter.ViewModel.SessionToken.Should().NotBeNullOrWhiteSpace();
 
         var rememberedLoginPresenter = new LoginWithDevicePresenter();
-        new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, otps, email, Passwords, rememberedLoginPresenter))
+        new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, otps, email, rememberedLoginPresenter))
             .Login("ada@example.com", "Correct9!", "browser-1");
 
         rememberedLoginPresenter.ViewModel!.OtpRequired.Should().BeFalse();
@@ -292,11 +279,11 @@ public sealed class UserComponentTests
     public void Login_uses_email_address_instead_of_public_handle()
     {
         var users = new InMemoryUserGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
+        users.Save(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
         var sessions = new InMemorySessionGateway();
 
         var emailPresenter = new LoginPresenter();
-        new LoginController(new LoginInteractor(users, sessions, Passwords, emailPresenter))
+        new LoginController(new LoginInteractor(users, sessions, emailPresenter))
             .Login("ada@example.com", "Correct9!");
 
         emailPresenter.ViewModel!.Succeeded.Should().BeTrue();
@@ -304,7 +291,7 @@ public sealed class UserComponentTests
         emailPresenter.ViewModel.SessionToken.Should().NotBeNullOrWhiteSpace();
 
         var handlePresenter = new LoginPresenter();
-        new LoginController(new LoginInteractor(users, sessions, Passwords, handlePresenter))
+        new LoginController(new LoginInteractor(users, sessions, handlePresenter))
             .Login("@ada", "Correct9!");
 
         handlePresenter.ViewModel!.Succeeded.Should().BeFalse();
@@ -316,7 +303,7 @@ public sealed class UserComponentTests
     {
         var now = new MutableClock(DateTimeOffset.UtcNow);
         var users = new InMemoryUserGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
+        users.Save(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
         var resets = new InMemoryPasswordResetTokenGateway(now);
         var email = new InMemoryEmailGateway();
 
@@ -329,14 +316,14 @@ public sealed class UserComponentTests
 
         var token = resets.FindActiveToken("ada@example.com")!;
         var resetPresenter = new ResetPasswordPresenter();
-        new ResetPasswordController(new ResetPasswordInteractor(users, resets, now, Passwords, resetPresenter))
+        new ResetPasswordController(new ResetPasswordInteractor(users, resets, now, resetPresenter))
             .Reset(token, "Changed9!");
 
         resetPresenter.ViewModel!.Succeeded.Should().BeTrue();
-        Passwords.Verify("Changed9!", users.FindByHandle("@ada")!.PasswordHash).Should().BeTrue();
+        users.Authenticate("ada@example.com", "Changed9!").Should().NotBeNull();
 
         var reusedPresenter = new ResetPasswordPresenter();
-        new ResetPasswordController(new ResetPasswordInteractor(users, resets, now, Passwords, reusedPresenter))
+        new ResetPasswordController(new ResetPasswordInteractor(users, resets, now, reusedPresenter))
             .Reset(token, "Again999!");
         reusedPresenter.ViewModel!.Succeeded.Should().BeFalse();
 
@@ -346,18 +333,18 @@ public sealed class UserComponentTests
         now.Advance(TimeSpan.FromMinutes(6));
 
         var expiredPresenter = new ResetPasswordPresenter();
-        new ResetPasswordController(new ResetPasswordInteractor(users, resets, now, Passwords, expiredPresenter))
+        new ResetPasswordController(new ResetPasswordInteractor(users, resets, now, expiredPresenter))
             .Reset(expiredToken, "Expired9!");
 
         expiredPresenter.ViewModel!.Succeeded.Should().BeFalse();
     }
 
     [Fact]
-    public void Password_reset_persists_changed_hash_through_user_gateway()
+    public void Password_reset_persists_changed_credentials_through_user_gateway()
     {
         var now = new MutableClock(DateTimeOffset.UtcNow);
         var users = new DetachedUserGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
+        users.Save(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
         var resets = new InMemoryPasswordResetTokenGateway(now);
         var email = new InMemoryEmailGateway();
         new RequestPasswordResetController(new RequestPasswordResetInteractor(users, resets, email, now, new RequestPasswordResetPresenter()))
@@ -365,21 +352,21 @@ public sealed class UserComponentTests
 
         var token = resets.FindActiveToken("ada@example.com")!;
         var resetPresenter = new ResetPasswordPresenter();
-        new ResetPasswordController(new ResetPasswordInteractor(users, resets, now, Passwords, resetPresenter))
+        new ResetPasswordController(new ResetPasswordInteractor(users, resets, now, resetPresenter))
             .Reset(token, "Changed9!");
 
         resetPresenter.ViewModel!.Succeeded.Should().BeTrue();
-        Passwords.Verify("Changed9!", users.FindByEmail("ada@example.com")!.PasswordHash).Should().BeTrue();
+        users.Authenticate("ada@example.com", "Changed9!").Should().NotBeNull();
     }
 
     [Fact]
     public void Login_rejects_invalid_password_and_does_not_create_session()
     {
         var users = new InMemoryUserGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Grace Hopper", "@grace", "grace@example.com", Passwords.Hash("NavyCode9!")));
+        users.Save(UserAccount.CreateWithCredentials("Grace Hopper", "@grace", "grace@example.com", "NavyCode9!"));
         var sessions = new InMemorySessionGateway();
         var presenter = new LoginPresenter();
-        var controller = new LoginController(new LoginInteractor(users, sessions, Passwords, presenter));
+        var controller = new LoginController(new LoginInteractor(users, sessions, presenter));
 
         controller.Login("grace@example.com", "wrong-password");
 
@@ -395,7 +382,7 @@ public sealed class UserComponentTests
         var users = new InMemoryUserGateway();
         var sessions = new InMemorySessionGateway();
         var output = new CapturingLoginOutput();
-        var interactor = new LoginInteractor(users, sessions, Passwords, output);
+        var interactor = new LoginInteractor(users, sessions, output);
 
         interactor.Handle(new("missing@example.com", "wrong-password"));
 
@@ -420,7 +407,7 @@ public sealed class UserComponentTests
     {
         var users = new InMemoryUserGateway();
         var resets = new InMemoryPasswordResetGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
+        users.Save(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
 
         var forgotPresenter = new ForgotPasswordPresenter();
         new ForgotPasswordController(new ForgotPasswordInteractor(users, resets, forgotPresenter))
@@ -430,19 +417,19 @@ public sealed class UserComponentTests
         var token = resets.FindToken("ada@example.com");
 
         var changePresenter = new ChangePasswordPresenter();
-        new ChangePasswordController(new ChangePasswordInteractor(users, resets, Passwords, changePresenter))
+        new ChangePasswordController(new ChangePasswordInteractor(users, resets, changePresenter))
             .ChangePassword(token!, "Changed9!");
 
         changePresenter.ViewModel!.Succeeded.Should().BeTrue();
-        Passwords.Verify("Changed9!", users.FindByHandle("@ada")!.PasswordHash).Should().BeTrue();
+        users.Authenticate("ada@example.com", "Changed9!").Should().NotBeNull();
     }
 
     [Fact]
     public void Search_and_view_user_return_presenter_view_models()
     {
         var users = new InMemoryUserGateway();
-        users.Save(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
-        users.Save(UserAccount.CreateWithPasswordHash("Grace Hopper", "@grace", "grace@example.com", Passwords.Hash("NavyCode9!")));
+        users.Save(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!"));
+        users.Save(UserAccount.CreateWithCredentials("Grace Hopper", "@grace", "grace@example.com", "NavyCode9!"));
         var createdAt = new DateTimeOffset(2026, 5, 11, 20, 38, 0, TimeSpan.Zero);
 
         var searchPresenter = new SearchUserPresenter();
@@ -462,7 +449,7 @@ public sealed class UserComponentTests
     public void View_user_includes_profile_image_metadata()
     {
         var users = new InMemoryUserGateway();
-        var account = UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!"));
+        var account = UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
         var assetId = Guid.NewGuid();
         account.SetProfileImage(new ProfileImage(
             assetId,
@@ -494,11 +481,30 @@ public sealed class UserComponentTests
     private sealed class DetachedUserGateway : IUserGateway
     {
         private readonly Dictionary<string, UserAccount> _usersByEmail = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ICredentialsGateway _credentials = new InMemoryCredentialsGateway();
+
+        public UserAccount Save(string displayName, string handle, string email, string password)
+        {
+            var user = UserAccount.CreateWithCredentials(displayName, handle, email, _credentials.Create(password));
+            Save(user);
+            return user;
+        }
 
         public void Save(UserAccount user)
         {
             _usersByEmail[user.Email] = Copy(user);
         }
+
+        public void ChangePassword(UserAccount user, string password)
+        {
+            user.ChangeCredentials(_credentials.Create(password));
+            Save(user);
+        }
+
+        public UserAccount? Authenticate(string email, string password) =>
+            FindByEmail(email) is { } user && _credentials.Matches(password, user.Credentials)
+                ? user
+                : null;
 
         public UserAccount? FindByHandle(string handle) =>
             _usersByEmail.Values
@@ -517,7 +523,7 @@ public sealed class UserComponentTests
                 .ToArray();
 
         private static UserAccount Copy(UserAccount user) =>
-            UserAccount.Rehydrate(user.Id, user.DisplayName, user.Handle, user.Email, user.PasswordHash, user.ProfileImage);
+            UserAccount.Rehydrate(user.Id, user.DisplayName, user.Handle, user.Email, user.Credentials, user.ProfileImage);
     }
 
     private sealed class EmptyUserProfilePostGateway : IUserProfilePostGateway
@@ -546,3 +552,5 @@ public sealed class UserComponentTests
             };
     }
 }
+
+

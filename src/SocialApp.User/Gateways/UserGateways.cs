@@ -4,7 +4,10 @@ namespace SocialApp.User.Gateways;
 
 public interface IUserGateway
 {
+    UserAccount Save(string displayName, string handle, string email, string password);
     void Save(UserAccount user);
+    void ChangePassword(UserAccount user, string password);
+    UserAccount? Authenticate(string email, string password);
     UserAccount? FindByHandle(string handle);
     UserAccount? FindByEmail(string email);
     IReadOnlyList<UserAccount> Search(string query);
@@ -36,7 +39,7 @@ public interface IEmailGateway
 
 public interface IPendingRegistrationGateway
 {
-    void Save(PendingRegistration registration);
+    void Save(string displayName, string handle, string email, string password);
     PendingRegistration? FindByEmail(string email);
     void Remove(string email);
 }
@@ -75,7 +78,7 @@ public interface IProfileImageStorageGateway
     void Remove(Guid assetId);
 }
 
-public sealed record PendingRegistration(string DisplayName, string Handle, string Email, string PasswordHash);
+public sealed record PendingRegistration(string DisplayName, string Handle, string Email, string Credentials);
 public sealed record SentEmail(string To, string Subject, string Body);
 public sealed record PasswordResetToken(string Email, DateTimeOffset ExpiresAt);
 public sealed record ReserveProfileImageUpload(string OwnerHandle, string ContentType, long ByteLength);
@@ -124,8 +127,16 @@ public sealed class MutableClock(DateTimeOffset utcNow) : IClock
 public sealed class InMemoryUserGateway : IUserGateway
 {
     private readonly List<UserAccount> _users = new();
+    private readonly ICredentialsGateway _credentials = new InMemoryCredentialsGateway();
 
     public IReadOnlyList<UserAccount> AllUsers => _users;
+
+    public UserAccount Save(string displayName, string handle, string email, string password)
+    {
+        var user = UserAccount.CreateWithCredentials(displayName, handle, email, _credentials.Create(password));
+        Save(user);
+        return user;
+    }
 
     public void Save(UserAccount user)
     {
@@ -148,6 +159,17 @@ public sealed class InMemoryUserGateway : IUserGateway
 
         _users.Add(user);
     }
+
+    public void ChangePassword(UserAccount user, string password)
+    {
+        user.ChangeCredentials(_credentials.Create(password));
+        Save(user);
+    }
+
+    public UserAccount? Authenticate(string email, string password) =>
+        FindByEmail(email) is { } user && _credentials.Matches(password, user.Credentials)
+            ? user
+            : null;
 
     public UserAccount? FindByHandle(string handle) =>
         _users.SingleOrDefault(u => string.Equals(u.Handle, handle, StringComparison.OrdinalIgnoreCase));
@@ -206,9 +228,35 @@ public sealed class InMemoryEmailGateway : IEmailGateway
 public sealed class InMemoryPendingRegistrationGateway : IPendingRegistrationGateway
 {
     private readonly Dictionary<string, PendingRegistration> _registrations = new(StringComparer.OrdinalIgnoreCase);
-    public void Save(PendingRegistration registration) => _registrations[registration.Email] = registration;
+    private readonly ICredentialsGateway _credentials = new InMemoryCredentialsGateway();
+
+    public void Save(string displayName, string handle, string email, string password) =>
+        _registrations[email] = new PendingRegistration(displayName, handle, email, _credentials.Create(password));
+
     public PendingRegistration? FindByEmail(string email) => _registrations.GetValueOrDefault(email);
     public void Remove(string email) => _registrations.Remove(email);
+}
+
+public sealed class InMemoryCredentialsGateway : ICredentialsGateway
+{
+    public string Create(string password)
+    {
+        Validate(password);
+        return password;
+    }
+
+    public bool Matches(string password, string credentials) =>
+        string.Equals(credentials, password, StringComparison.Ordinal);
+
+    public string Normalize(string credentials) => credentials;
+
+    private static void Validate(string password)
+    {
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8 || !password.Any(char.IsDigit))
+        {
+            throw new ArgumentException("Password must be at least 8 characters and include a digit.", nameof(password));
+        }
+    }
 }
 
 public sealed class InMemoryVerificationCodeGateway(IClock? clock = null) : IVerificationCodeGateway

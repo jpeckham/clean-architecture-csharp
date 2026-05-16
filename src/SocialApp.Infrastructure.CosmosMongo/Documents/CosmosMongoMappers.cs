@@ -11,7 +11,7 @@ public static class CosmosMongoMappers
         DisplayName = user.DisplayName,
         Handle = user.Handle,
         Email = user.Email,
-        PasswordHash = user.PasswordHash,
+        PasswordHash = user.Credentials,
         ProfileImage = user.ProfileImage is null
             ? null
             : new ProfileImageDocument

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using MongoDB.Bson;
 using SocialApp.Infrastructure.CosmosMongo.Documents;
+using SocialApp.Infrastructure.CosmosMongo.Gateways;
 using SocialApp.Post.Controllers;
 using SocialApp.Post.Entities;
 using SocialApp.Post.Gateways;
@@ -14,12 +15,12 @@ namespace SocialApp.Infrastructure.CosmosMongo.Tests;
 
 public sealed class CosmosMongoMappingTests
 {
-    private static readonly IPasswordGateway Passwords = new Pbkdf2PasswordGateway();
+    private static readonly ICredentialsGateway Credentials = new Pbkdf2CredentialsGateway();
 
     [Fact]
     public void Documents_with_guid_fields_can_be_serialized_by_mongo_driver()
     {
-        var user = CosmosMongoMappers.ToDocument(UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!")));
+        var user = CosmosMongoMappers.ToDocument(UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", Credentials.Create("Correct9!")));
         var post = CosmosMongoMappers.ToDocument(SocialPost.Create("@ada", "Hello from Cosmos"));
         var session = new SessionDocument
         {
@@ -42,7 +43,7 @@ public sealed class CosmosMongoMappingTests
     [Fact]
     public void User_documents_round_trip_to_entities()
     {
-        var user = UserAccount.CreateWithPasswordHash("Ada Lovelace", "@ada", "ada@example.com", Passwords.Hash("Correct9!"));
+        var user = UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", Credentials.Create("Correct9!"));
 
         var document = CosmosMongoMappers.ToDocument(user);
         var entity = CosmosMongoMappers.ToEntity(document);
@@ -53,7 +54,7 @@ public sealed class CosmosMongoMappingTests
         entity.DisplayName.Should().Be("Ada Lovelace");
         entity.Handle.Should().Be("@ada");
         entity.Email.Should().Be("ada@example.com");
-        Passwords.Verify("Correct9!", entity.PasswordHash).Should().BeTrue();
+        Credentials.Matches("Correct9!", entity.Credentials).Should().BeTrue();
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public sealed class CosmosMongoMappingTests
             320,
             240,
             uploadedAt);
-        var user = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", "hash", profileImage);
+        var user = UserAccount.Rehydrate(Guid.NewGuid(), "Ada Lovelace", "@ada", "ada@example.com", "credentials", profileImage);
 
         var document = CosmosMongoMappers.ToDocument(user);
         var entity = CosmosMongoMappers.ToEntity(document);
@@ -286,3 +287,5 @@ public sealed class CosmosMongoMappingTests
         }
     }
 }
+
+

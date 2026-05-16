@@ -5,12 +5,11 @@ using SocialApp.User.ResponseModels;
 
 namespace SocialApp.User.UseCases;
 
-public sealed class CreateAccountInteractor(IUserGateway users, ISessionGateway sessions, IPasswordGateway passwords, ICreateAccountOutputBoundary output) : ICreateAccountInputBoundary
+public sealed class CreateAccountInteractor(IUserGateway users, ISessionGateway sessions, ICreateAccountOutputBoundary output) : ICreateAccountInputBoundary
 {
     public void Handle(CreateAccountRequest request)
     {
-        var user = UserAccount.CreateWithPasswordHash(request.DisplayName, request.Handle, request.Email, passwords.Hash(request.Password));
-        users.Save(user);
+        var user = users.Save(request.DisplayName, request.Handle, request.Email, request.Password);
         var token = sessions.CreateSession(user);
         output.Present(new CreateAccountResponse(true, UserMessageKeys.AccountCreated, user.Handle, token));
     }
@@ -21,7 +20,6 @@ public sealed class RegisterAccountInteractor(
     IPendingRegistrationGateway registrations,
     IVerificationCodeGateway codes,
     IEmailGateway email,
-    IPasswordGateway passwords,
     IRegisterAccountOutputBoundary output) : IRegisterAccountInputBoundary
 {
     public void Handle(RegisterAccountRequest request)
@@ -32,8 +30,7 @@ public sealed class RegisterAccountInteractor(
             return;
         }
 
-        var pendingAccount = UserAccount.CreateWithPasswordHash(request.DisplayName, request.Handle, request.Email, passwords.Hash(request.Password));
-        registrations.Save(new PendingRegistration(pendingAccount.DisplayName, pendingAccount.Handle, pendingAccount.Email, pendingAccount.PasswordHash));
+        registrations.Save(request.DisplayName, request.Handle, request.Email, request.Password);
         var code = codes.CreateCode(request.Email, "registration", TimeSpan.FromMinutes(15));
         email.Send(request.Email, "Verify your SocialApp account", $"Your SocialApp verification code is {code}.");
         output.Present(new RegisterAccountResponse(true, UserMessageKeys.VerificationCodeSent));
@@ -44,7 +41,6 @@ public sealed class VerifyRegistrationInteractor(
     IUserGateway users,
     IPendingRegistrationGateway registrations,
     IVerificationCodeGateway codes,
-    IPasswordGateway passwords,
     IVerifyRegistrationOutputBoundary output) : IVerifyRegistrationInputBoundary
 {
     public void Handle(VerifyRegistrationRequest request)
@@ -56,18 +52,18 @@ public sealed class VerifyRegistrationInteractor(
             return;
         }
 
-        users.Save(UserAccount.CreateWithPasswordHash(registration.DisplayName, registration.Handle, registration.Email, passwords.NormalizeStoredPassword(registration.PasswordHash)));
+        users.Save(UserAccount.CreateWithCredentials(registration.DisplayName, registration.Handle, registration.Email, registration.Credentials));
         registrations.Remove(request.Email);
         output.Present(new VerifyRegistrationResponse(true, UserMessageKeys.AccountVerified));
     }
 }
 
-public sealed class LoginInteractor(IUserGateway users, ISessionGateway sessions, IPasswordGateway passwords, ILoginOutputBoundary output) : ILoginInputBoundary
+public sealed class LoginInteractor(IUserGateway users, ISessionGateway sessions, ILoginOutputBoundary output) : ILoginInputBoundary
 {
     public void Handle(LoginRequest request)
     {
-        var user = users.FindByEmail(request.Email);
-        if (user is null || !passwords.Verify(request.Password, user.PasswordHash))
+        var user = users.Authenticate(request.Email, request.Password);
+        if (user is null)
         {
             output.Present(new LoginResponse(false, UserMessageKeys.InvalidCredentials, null, null));
             return;
@@ -83,13 +79,12 @@ public sealed class LoginWithDeviceInteractor(
     IRememberedDeviceGateway devices,
     IVerificationCodeGateway codes,
     IEmailGateway email,
-    IPasswordGateway passwords,
     ILoginWithDeviceOutputBoundary output) : ILoginWithDeviceInputBoundary
 {
     public void Handle(LoginWithDeviceRequest request)
     {
-        var user = users.FindByEmail(request.Email);
-        if (user is null || !passwords.Verify(request.Password, user.PasswordHash))
+        var user = users.Authenticate(request.Email, request.Password);
+        if (user is null)
         {
             output.Present(new LoginWithDeviceResponse(false, UserMessageKeys.InvalidCredentials, null, null, false));
             return;
@@ -147,7 +142,7 @@ public sealed class ForgotPasswordInteractor(IUserGateway users, IPasswordResetG
     }
 }
 
-public sealed class ChangePasswordInteractor(IUserGateway users, IPasswordResetGateway resets, IPasswordGateway passwords, IChangePasswordOutputBoundary output) : IChangePasswordInputBoundary
+public sealed class ChangePasswordInteractor(IUserGateway users, IPasswordResetGateway resets, IChangePasswordOutputBoundary output) : IChangePasswordInputBoundary
 {
     public void Handle(ChangePasswordRequest request)
     {
@@ -164,8 +159,7 @@ public sealed class ChangePasswordInteractor(IUserGateway users, IPasswordResetG
             return;
         }
 
-        user.ChangePasswordHash(passwords.Hash(request.NewPassword));
-        users.Save(user);
+        users.ChangePassword(user, request.NewPassword);
         resets.Consume(request.ResetToken);
         output.Present(new ChangePasswordResponse(true, UserMessageKeys.PasswordChanged));
     }
@@ -197,7 +191,6 @@ public sealed class ResetPasswordInteractor(
     IUserGateway users,
     IPasswordResetTokenGateway resets,
     IClock clock,
-    IPasswordGateway passwords,
     IResetPasswordOutputBoundary output) : IResetPasswordInputBoundary
 {
     public void Handle(ResetPasswordRequest request)
@@ -217,8 +210,7 @@ public sealed class ResetPasswordInteractor(
             return;
         }
 
-        user.ChangePasswordHash(passwords.Hash(request.NewPassword));
-        users.Save(user);
+        users.ChangePassword(user, request.NewPassword);
         output.Present(new ResetPasswordResponse(true, UserMessageKeys.PasswordChanged));
     }
 }

@@ -1,22 +1,16 @@
 using System.Security.Cryptography;
+using SocialApp.User.Gateways;
 
-namespace SocialApp.User.Gateways;
+namespace SocialApp.Infrastructure.CosmosMongo.Gateways;
 
-public interface IPasswordGateway
-{
-    string Hash(string password);
-    bool Verify(string password, string storedPassword);
-    string NormalizeStoredPassword(string storedPassword);
-}
-
-public sealed class Pbkdf2PasswordGateway : IPasswordGateway
+public sealed class Pbkdf2CredentialsGateway : ICredentialsGateway
 {
     private const string Algorithm = "PBKDF2";
     private const int Iterations = 100_000;
     private const int SaltSize = 16;
     private const int HashSize = 32;
 
-    public string Hash(string password)
+    public string Create(string password)
     {
         Validate(password);
         var salt = RandomNumberGenerator.GetBytes(SaltSize);
@@ -24,14 +18,14 @@ public sealed class Pbkdf2PasswordGateway : IPasswordGateway
         return $"{Algorithm}${Iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
     }
 
-    public bool Verify(string password, string storedPassword)
+    public bool Matches(string password, string credentials)
     {
-        if (!storedPassword.StartsWith($"{Algorithm}$", StringComparison.Ordinal))
+        if (!credentials.StartsWith($"{Algorithm}$", StringComparison.Ordinal))
         {
-            return string.Equals(storedPassword, password, StringComparison.Ordinal);
+            return string.Equals(credentials, password, StringComparison.Ordinal);
         }
 
-        var parts = storedPassword.Split('$');
+        var parts = credentials.Split('$');
         if (parts.Length != 4 ||
             !int.TryParse(parts[1], out var iterations) ||
             iterations <= 0)
@@ -52,10 +46,10 @@ public sealed class Pbkdf2PasswordGateway : IPasswordGateway
         }
     }
 
-    public string NormalizeStoredPassword(string storedPassword) =>
-        storedPassword.StartsWith($"{Algorithm}$", StringComparison.Ordinal)
-            ? storedPassword
-            : Hash(storedPassword);
+    public string Normalize(string credentials) =>
+        credentials.StartsWith($"{Algorithm}$", StringComparison.Ordinal)
+            ? credentials
+            : Create(credentials);
 
     private static void Validate(string password)
     {

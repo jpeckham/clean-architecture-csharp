@@ -2,15 +2,15 @@ namespace SocialApp.User.Entities;
 
 public sealed class UserAccount
 {
-    private string _passwordHash;
+    private string _credentials;
 
-    private UserAccount(Guid id, string displayName, string handle, string email, string passwordHash, ProfileImage? profileImage)
+    private UserAccount(Guid id, string displayName, string handle, string email, string credentials, ProfileImage? profileImage)
     {
         Id = id;
         DisplayName = displayName;
         Handle = handle;
         Email = email;
-        _passwordHash = passwordHash;
+        _credentials = credentials;
         ProfileImage = profileImage;
     }
 
@@ -18,10 +18,10 @@ public sealed class UserAccount
     public string DisplayName { get; }
     public string Handle { get; }
     public string Email { get; }
-    public string PasswordHash => _passwordHash;
+    public string Credentials => _credentials;
     public ProfileImage? ProfileImage { get; private set; }
 
-    public static UserAccount CreateWithPasswordHash(string displayName, string handle, string email, string passwordHash)
+    public static UserAccount CreateWithCredentials(string displayName, string handle, string email, string credentials)
     {
         if (string.IsNullOrWhiteSpace(displayName))
         {
@@ -38,12 +38,12 @@ public sealed class UserAccount
             throw new ArgumentException("Email is invalid.", nameof(email));
         }
 
-        if (string.IsNullOrWhiteSpace(passwordHash))
+        if (string.IsNullOrWhiteSpace(credentials))
         {
-            throw new ArgumentException("Password hash is required.", nameof(passwordHash));
+            throw new ArgumentException("Credentials are required.", nameof(credentials));
         }
 
-        return new UserAccount(Guid.NewGuid(), displayName.Trim(), handle.Trim(), email.Trim(), passwordHash, null);
+        return new UserAccount(Guid.NewGuid(), displayName.Trim(), handle.Trim(), email.Trim(), credentials, null);
     }
 
     public static UserAccount Rehydrate(
@@ -51,7 +51,7 @@ public sealed class UserAccount
         string displayName,
         string handle,
         string email,
-        string passwordHash,
+        string credentials,
         ProfileImage? profileImage = null)
     {
         if (id == Guid.Empty)
@@ -74,22 +74,22 @@ public sealed class UserAccount
             throw new ArgumentException("Email is invalid.", nameof(email));
         }
 
-        if (string.IsNullOrWhiteSpace(passwordHash))
+        if (string.IsNullOrWhiteSpace(credentials))
         {
-            throw new ArgumentException("Password hash is required.", nameof(passwordHash));
+            throw new ArgumentException("Credentials are required.", nameof(credentials));
         }
 
-        return new UserAccount(id, displayName.Trim(), handle.Trim(), email.Trim(), passwordHash, profileImage);
+        return new UserAccount(id, displayName.Trim(), handle.Trim(), email.Trim(), credentials, profileImage);
     }
 
-    public void ChangePasswordHash(string passwordHash)
+    public void ChangeCredentials(string credentials)
     {
-        if (string.IsNullOrWhiteSpace(passwordHash))
+        if (string.IsNullOrWhiteSpace(credentials))
         {
-            throw new ArgumentException("Password hash is required.", nameof(passwordHash));
+            throw new ArgumentException("Credentials are required.", nameof(credentials));
         }
 
-        _passwordHash = passwordHash;
+        _credentials = credentials;
     }
 
     public void SetProfileImage(ProfileImage profileImage)

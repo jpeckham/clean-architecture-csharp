@@ -4,25 +4,28 @@ using SocialApp.User.Gateways;
 
 namespace SocialApp.Infrastructure.CosmosMongo.Gateways;
 
-public sealed class CosmosMongoPendingRegistrationGateway(CosmosMongoCollections collections) : IPendingRegistrationGateway
+public sealed class CosmosMongoPendingRegistrationGateway(CosmosMongoCollections collections, ICredentialsGateway credentials) : IPendingRegistrationGateway
 {
     private readonly IMongoCollection<PendingRegistrationDocument> _registrations = collections.PendingRegistrations;
 
-    public void Save(PendingRegistration registration) =>
+    public void Save(string displayName, string handle, string email, string password)
+    {
+        var storedCredentials = credentials.Create(password);
         _registrations.ReplaceOne(
-            r => r.Email == registration.Email,
+            r => r.Email == email,
             new PendingRegistrationDocument
             {
-                Email = registration.Email,
-                DisplayName = registration.DisplayName,
-                Handle = registration.Handle,
-                PasswordHash = registration.PasswordHash
+                Email = email,
+                DisplayName = displayName,
+                Handle = handle,
+                PasswordHash = storedCredentials
             },
             new ReplaceOptions { IsUpsert = true });
+    }
 
     public PendingRegistration? FindByEmail(string email) =>
         _registrations.Find(r => r.Email == email).FirstOrDefault() is { } document
-            ? new PendingRegistration(document.DisplayName, document.Handle, document.Email, document.PasswordHash)
+            ? new PendingRegistration(document.DisplayName, document.Handle, document.Email, credentials.Normalize(document.PasswordHash))
             : null;
 
     public void Remove(string email) => _registrations.DeleteOne(r => r.Email == email);

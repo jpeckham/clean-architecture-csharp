@@ -150,6 +150,29 @@ public sealed class ArchitectureRulesTests
     }
 
     [Fact]
+    public void User_component_does_not_contain_credential_persistence_details()
+    {
+        var forbidden = new[]
+        {
+            "HashPassword",
+            "BCrypt",
+            "Argon2",
+            "PBKDF2",
+            "PasswordHash",
+            "Salt",
+            "Pepper",
+            "IterationCount",
+            "PasswordHasher",
+            "IPasswordGateway"
+        };
+
+        forbidden
+            .SelectMany(term => FindSourceLines(new[] { "src/SocialApp.User" }, term))
+            .Should()
+            .BeEmpty("hashing algorithms and persisted credential formats belong in outer persistence details");
+    }
+
+    [Fact]
     public void Presenters_implement_output_boundaries()
     {
         var presenters = UserAssembly.GetTypes().Concat(PostAssembly.GetTypes())

@@ -49,10 +49,10 @@ public static class SocialAppSliceEndpoints
         return endpoints;
     }
 
-    private static IResult CreateAccount(CreateAccountHttpRequest request, IUserGateway users, ISessionGateway sessions, IPasswordGateway passwords)
+    private static IResult CreateAccount(CreateAccountHttpRequest request, IUserGateway users, ISessionGateway sessions)
     {
         var presenter = new CreateAccountPresenter();
-        var controller = new CreateAccountController(new CreateAccountInteractor(users, sessions, passwords, presenter));
+        var controller = new CreateAccountController(new CreateAccountInteractor(users, sessions, presenter));
 
         try
         {
@@ -77,11 +77,10 @@ public static class SocialAppSliceEndpoints
         IUserGateway users,
         IPendingRegistrationGateway registrations,
         IVerificationCodeGateway codes,
-        IEmailGateway email,
-        IPasswordGateway passwords)
+        IEmailGateway email)
     {
         var presenter = new RegisterAccountPresenter();
-        var controller = new RegisterAccountController(new RegisterAccountInteractor(users, registrations, codes, email, passwords, presenter));
+        var controller = new RegisterAccountController(new RegisterAccountInteractor(users, registrations, codes, email, presenter));
 
         try
         {
@@ -101,21 +100,20 @@ public static class SocialAppSliceEndpoints
         VerifyRegistrationHttpRequest request,
         IUserGateway users,
         IPendingRegistrationGateway registrations,
-        IVerificationCodeGateway codes,
-        IPasswordGateway passwords)
+        IVerificationCodeGateway codes)
     {
         var presenter = new VerifyRegistrationPresenter();
-        new VerifyRegistrationController(new VerifyRegistrationInteractor(users, registrations, codes, passwords, presenter))
+        new VerifyRegistrationController(new VerifyRegistrationInteractor(users, registrations, codes, presenter))
             .Verify(request.Email, request.Code);
         return presenter.ViewModel is { Succeeded: true }
             ? Results.Ok(presenter.ViewModel)
             : Results.BadRequest(presenter.ViewModel);
     }
 
-    private static IResult Login(LoginHttpRequest request, IUserGateway users, ISessionGateway sessions, IPasswordGateway passwords)
+    private static IResult Login(LoginHttpRequest request, IUserGateway users, ISessionGateway sessions)
     {
         var presenter = new LoginPresenter();
-        var controller = new LoginController(new LoginInteractor(users, sessions, passwords, presenter));
+        var controller = new LoginController(new LoginInteractor(users, sessions, presenter));
         controller.Login(request.Email, request.Password);
 
         return presenter.ViewModel is { Succeeded: true }
@@ -129,11 +127,10 @@ public static class SocialAppSliceEndpoints
         ISessionGateway sessions,
         IRememberedDeviceGateway devices,
         IVerificationCodeGateway codes,
-        IEmailGateway email,
-        IPasswordGateway passwords)
+        IEmailGateway email)
     {
         var presenter = new LoginWithDevicePresenter();
-        new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, codes, email, passwords, presenter))
+        new LoginWithDeviceController(new LoginWithDeviceInteractor(users, sessions, devices, codes, email, presenter))
             .Login(request.Email, request.Password, request.DeviceId);
 
         return presenter.ViewModel is { Succeeded: true }
@@ -182,11 +179,10 @@ public static class SocialAppSliceEndpoints
         ResetPasswordHttpRequest request,
         IUserGateway users,
         IPasswordResetTokenGateway resets,
-        IClock clock,
-        IPasswordGateway passwords)
+        IClock clock)
     {
         var presenter = new ResetPasswordPresenter();
-        new ResetPasswordController(new ResetPasswordInteractor(users, resets, clock, passwords, presenter))
+        new ResetPasswordController(new ResetPasswordInteractor(users, resets, clock, presenter))
             .Reset(request.Token, request.NewPassword);
         return presenter.ViewModel is { Succeeded: true }
             ? Results.Ok(presenter.ViewModel)
