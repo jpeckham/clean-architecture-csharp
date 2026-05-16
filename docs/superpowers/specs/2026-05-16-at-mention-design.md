@@ -94,31 +94,31 @@ The segmentation of content into typed segments is a Presenter concern (Interfac
 
 `SocialApp.Web` has no project reference to `SocialApp.Post`. The solution is not to move the logic into the web layer — it is to serialize the ViewModel's `ContentSegments` as JSON with a type discriminator and define parallel DTO types in `SocialApp.Web` for deserialization. The logic and its tests remain on the server.
 
-### Server-side segment types (`SocialApp.Post.ViewModels`)
+### Server-side segment type (`SocialApp.Post.ViewModels`)
 
 ```csharp
-public abstract record PostContentSegment;
-public sealed record TextSegment(string Text) : PostContentSegment;
-public sealed record MentionSegment(string Handle) : PostContentSegment;
+public sealed record PostContentSegment(int Sequence, string Text, string? MentionHandle);
 ```
+
+- `Sequence` — the ordinal position of this segment within the content
+- `Text` — the display text for this segment (e.g. `"Hello "`, `"@jpeckham"`, `" is awesome"`)
+- `MentionHandle` — `null` for plain text; the validated account handle if this segment is a mention
+
+No inheritance, no type discriminators, no implied client behaviour. A client determines whether a segment is a mention solely by whether `MentionHandle` is non-null. The JSON is a flat array of flat objects — universally consumable.
 
 `PostSummaryViewModel` gains `IReadOnlyList<PostContentSegment> ContentSegments`.
 
 ### Presenter (`PostPresenters.cs`)
 
-The Presenter segments content when building the ViewModel — consistent with the Humble Object pattern. It calls `SocialPost.ExtractMentionHandles(response.Content)` to identify token positions, checks each handle against `response.Mentions`, and emits typed segments. The resulting `ContentSegments` list fully represents the renderable content; no further parsing is needed by any consumer.
+The Presenter segments content when building the ViewModel — consistent with the Humble Object pattern. It calls `SocialPost.ExtractMentionHandles(response.Content)` to identify token positions, checks each handle against `response.Mentions`, and emits `PostContentSegment` records in order. The resulting `ContentSegments` list fully represents the renderable content; no further parsing is needed by any consumer.
 
-### JSON serialization
-
-`PostContentSegment` and its subtypes carry no framework attributes — they are plain C# records. A custom `JsonConverter<PostContentSegment>` registered in `SocialApp.Api/Program.cs` handles the type discriminator on the way out. Serialization is a Framework & Drivers concern and belongs entirely in the outermost ring.
-
-### Web-local DTO types (`SocialApp.Web`)
+### Web DTO (`SocialApp.Web`)
 
 ```csharp
-public sealed record PostContentSegmentResult(string Type, string? Text, string? Handle);
+public sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle);
 ```
 
-`PostSummaryResult` gains `IReadOnlyList<PostContentSegmentResult> ContentSegments`. The JSON deserializer maps the server's polymorphic array into these flat DTOs via the `$type` field.
+`PostSummaryResult` gains `IReadOnlyList<PostContentSegmentResult> ContentSegments`. The flat structure deserializes from JSON without any custom configuration.
 
 ### Razor component
 
@@ -126,9 +126,9 @@ A new `PostContent.razor` component in `SocialApp.Web` accepts:
 
 - `ContentSegments` — `IReadOnlyList<PostContentSegmentResult>`
 
-It iterates the segments and renders based on `Type`:
-- `"text"` → inline text node (`segment.Text`)
-- `"mention"` → `<a href="/users/{handle}">@handle</a>` (`segment.Handle`)
+It iterates segments in `Sequence` order and renders:
+- `MentionHandle` is null → inline text node (`segment.Text`)
+- `MentionHandle` is non-null → `<a href="/users/{segment.MentionHandle}">@segment.MentionHandle</a>`
 
 The component contains no parsing logic. `Feed.razor` and `UserProfile.razor` replace their bare `<p>@item.Content</p>` with:
 
