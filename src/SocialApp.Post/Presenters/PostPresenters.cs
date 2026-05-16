@@ -26,12 +26,12 @@ public sealed class SearchPostsPresenter : ISearchPostsOutputBoundary
 
 internal static class PostPresenterMapping
 {
-    private static readonly Regex MentionPattern = new(@"@([a-zA-Z0-9_]+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+    private static readonly Regex TokenPattern = new(@"(@[a-zA-Z0-9_]+)|(#\S+)", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     public static PostSummaryViewModel ToViewModel(PostSummaryResponse p) => new(
         p.Id,
         p.AuthorHandle,
-        SegmentContent(p.Content, p.Mentions),
+        SegmentContent(p.Content, p.Mentions, p.Hashtags),
         p.ParentPostId,
         p.OriginalPostId,
         p.CreatedAt,
@@ -53,22 +53,36 @@ internal static class PostPresenterMapping
             m.AltText,
             null)).ToArray() ?? Array.Empty<PostMediaSummaryViewModel>());
 
-    internal static IReadOnlyList<PostContentSegment> SegmentContent(string content, IReadOnlyList<string>? mentions)
+    internal static IReadOnlyList<PostContentSegment> SegmentContent(string content, IReadOnlyList<string>? mentions, IReadOnlyList<string>? hashtags)
     {
         var segments = new List<PostContentSegment>();
         var sequence = 0;
         var lastIndex = 0;
         var mentionSet = new HashSet<string>(mentions ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
-        foreach (Match match in MentionPattern.Matches(content))
+        var hashtagSet = new HashSet<string>(hashtags ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (Match match in TokenPattern.Matches(content))
         {
             if (match.Index > lastIndex)
                 segments.Add(new(sequence++, content[lastIndex..match.Index], null));
-            var handle = match.Groups[1].Value;
-            segments.Add(new(sequence++, match.Value, mentionSet.Contains(handle) ? handle : null));
+
+            if (match.Groups[1].Success)
+            {
+                var handle = match.Groups[1].Value[1..]; // strip @
+                segments.Add(new(sequence++, match.Value, mentionSet.Contains(handle) ? handle : null));
+            }
+            else
+            {
+                var tag = match.Groups[2].Value[1..]; // strip #
+                segments.Add(new(sequence++, match.Value, null, hashtagSet.Contains(tag) ? tag : null));
+            }
+
             lastIndex = match.Index + match.Length;
         }
+
         if (lastIndex < content.Length)
             segments.Add(new(sequence, content[lastIndex..], null));
+
         return segments;
     }
 }

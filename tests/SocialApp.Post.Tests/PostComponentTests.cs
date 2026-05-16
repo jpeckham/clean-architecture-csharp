@@ -492,6 +492,46 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void ScrollPosts_presenter_segments_hashtag_as_linked_segment()
+    {
+        var posts = new InMemoryPostGateway();
+        posts.Save(SocialPost.Create("ada", "Hello #world today", hashtags: new[] { "world" }));
+
+        var presenter = new ScrollPostsPresenter();
+        var interactor = new ScrollPostsInteractor(posts, presenter);
+        interactor.Handle(new("ada", 10));
+
+        var segments = presenter.ViewModel!.Posts.Single().ContentSegments;
+        segments.Should().HaveCount(3);
+        segments[0].Text.Should().Be("Hello ");
+        segments[0].HashtagText.Should().BeNull();
+        segments[1].Text.Should().Be("#world");
+        segments[1].HashtagText.Should().Be("world");
+        segments[2].Text.Should().Be(" today");
+        segments[2].HashtagText.Should().BeNull();
+    }
+
+    [Fact]
+    public void ScrollPosts_presenter_segments_mention_and_hashtag_in_order()
+    {
+        var posts = new InMemoryPostGateway();
+        posts.Save(SocialPost.Create("ada", "Hey @grace check #csharp", mentions: new[] { "grace" }, hashtags: new[] { "csharp" }));
+
+        var presenter = new ScrollPostsPresenter();
+        var interactor = new ScrollPostsInteractor(posts, presenter);
+        interactor.Handle(new("ada", 10));
+
+        var segments = presenter.ViewModel!.Posts.Single().ContentSegments;
+        segments.Should().HaveCount(4);
+        segments[0].Text.Should().Be("Hey ");
+        segments[1].Text.Should().Be("@grace");
+        segments[1].MentionHandle.Should().Be("grace");
+        segments[2].Text.Should().Be(" check ");
+        segments[3].Text.Should().Be("#csharp");
+        segments[3].HashtagText.Should().Be("csharp");
+    }
+
+    [Fact]
     public void Delete_post_rejects_non_author_and_keeps_post_visible()
     {
         var posts = new InMemoryPostGateway();
