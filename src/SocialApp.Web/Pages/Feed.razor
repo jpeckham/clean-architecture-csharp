@@ -22,9 +22,14 @@
 
     <div class="feed-layout">
         <section class="panel composer">
-            <h2>Create Post</h2>
+            <div class="composer-header">
+                <div>
+                    <h2>Create Post</h2>
+                    <p>Post as @Session.Handle</p>
+                </div>
+            </div>
             <EditForm Model="@post" OnValidSubmit="CreatePostAsync">
-                <InputTextArea @bind-Value="post.Content" placeholder="What changed?" />
+                <InputTextArea @bind-Value="post.Content" class="composer-input" placeholder="Share an update with your network." />
                 <div class="composer-media">
                     <label class="file-button secondary-file">
                         <InputFile OnChange="SelectMediaAsync" accept="image/*,video/*" multiple disabled="@(isBusy || isUploadingMedia)" />
@@ -58,7 +63,10 @@
                         }
                     </div>
                 }
-                <button type="submit" disabled="@IsPostSubmitDisabled">Post as @Session.Handle</button>
+                <div class="composer-submit-row">
+                    <span>@(selectedMedia.Count == 0 ? "Text only" : $"{selectedMedia.Count} media selected")</span>
+                    <button type="submit" disabled="@IsPostSubmitDisabled">Post</button>
+                </div>
             </EditForm>
         </section>
 

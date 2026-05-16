@@ -26,6 +26,42 @@ public sealed class WebConfigurationTests
             .Should().BeEquivalentTo(new[] { "/feed", "/feed/search" });
     }
 
+    [Fact]
+    public void Feed_styles_use_dark_professional_dashboard_theme()
+    {
+        var css = ReadWebStylesheet();
+
+        css.Should().Contain("color-scheme: dark");
+        css.Should().Contain("--surface");
+        css.Should().Contain("--accent");
+    }
+
+    [Fact]
+    public void Feed_styles_widen_posts_and_style_cards()
+    {
+        var css = ReadWebStylesheet();
+
+        css.Should().Contain("minmax(0, 820px)");
+        css.Should().Contain(".post {");
+        css.Should().Contain("box-shadow:");
+    }
+
+    [Fact]
+    public void Composer_has_dedicated_dashboard_styling()
+    {
+        var css = ReadWebStylesheet();
+
+        css.Should().Contain(".composer-header");
+        css.Should().Contain(".composer-submit-row");
+        css.Should().Contain(".composer textarea");
+    }
+
+    private static string ReadWebStylesheet()
+    {
+        var root = FindRepositoryRoot();
+        return File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "wwwroot", "css", "app.css"));
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
