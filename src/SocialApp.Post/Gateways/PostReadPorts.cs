@@ -42,7 +42,8 @@ internal static class PostSummaryProjection
             normalizedReaderHandle is not null && posts?.FindActiveRepost(repostTargetId, normalizedReaderHandle) is not null,
             originalPost is null ? null : new(originalPost.Id, originalPost.AuthorHandle, originalPost.Content, originalPost.CreatedAt, originalPost.Media.Select(ToMediaSummary).ToArray()),
             post.Media.Select(ToMediaSummary).ToArray(),
-            post.Mentions.ToArray());
+            post.Mentions.ToArray(),
+            post.Hashtags.ToArray());
     }
 
     public static PostMediaSummaryResponse ToMediaSummary(PostMediaItem item) => new(

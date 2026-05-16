@@ -47,7 +47,8 @@ public sealed record PostSummaryResponse(
     bool RepostedByCurrentReader,
     QuotedPostSummaryResponse? QuotedPost,
     IReadOnlyList<PostMediaSummaryResponse>? Media = null,
-    IReadOnlyList<string>? Mentions = null);
+    IReadOnlyList<string>? Mentions = null,
+    IReadOnlyList<string>? Hashtags = null);
 public sealed record CreatePostResponse(bool Succeeded, string MessageKey, PostSummaryResponse? Post);
 public sealed record ScrollPostsResponse(IReadOnlyList<PostSummaryResponse> Posts);
 public sealed record SearchPostsResponse(IReadOnlyList<PostSummaryResponse> Posts);
