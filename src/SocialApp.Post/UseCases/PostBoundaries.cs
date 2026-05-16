@@ -5,6 +5,8 @@ namespace SocialApp.Post.UseCases;
 
 public interface ICreatePostInputBoundary { void Handle(CreatePostRequest request); }
 public interface ICreatePostOutputBoundary { void Present(CreatePostResponse response); }
+public interface IDisplayPostInputBoundary { void Handle(DisplayPostRequest request); }
+public interface IDisplayPostOutputBoundary { void Present(DisplayPostResponse response); }
 public interface IScrollPostsInputBoundary { void Handle(ScrollPostsRequest request); }
 public interface IScrollPostsOutputBoundary { void Present(ScrollPostsResponse response); }
 public interface ISearchPostsInputBoundary { void Handle(SearchPostsRequest request); }

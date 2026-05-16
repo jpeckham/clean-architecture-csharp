@@ -3,6 +3,7 @@ namespace SocialApp.Post.ResponseModels;
 public static class PostMessageKeys
 {
     public const string PostCreated = "POST_CREATED";
+    public const string PostFound = "POST_FOUND";
     public const string UserFollowed = "USER_FOLLOWED";
     public const string UserBlocked = "USER_BLOCKED";
     public const string PostNotFound = "POST_NOT_FOUND";
@@ -50,6 +51,7 @@ public sealed record PostSummaryResponse(
     IReadOnlyList<string>? Mentions = null,
     IReadOnlyList<string>? Hashtags = null);
 public sealed record CreatePostResponse(bool Succeeded, string MessageKey, PostSummaryResponse? Post);
+public sealed record DisplayPostResponse(bool Succeeded, string MessageKey, PostSummaryResponse? Post);
 public sealed record ScrollPostsResponse(IReadOnlyList<PostSummaryResponse> Posts);
 public sealed record SearchPostsResponse(IReadOnlyList<PostSummaryResponse> Posts);
 public sealed record FollowUserPostsResponse(bool Succeeded, string MessageKey);

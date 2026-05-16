@@ -219,6 +219,63 @@ public sealed class SocialAppApiSliceTests
     }
 
     [Fact]
+    public async Task Individual_post_endpoint_returns_one_post_with_reader_state()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Deep link target #share" });
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+        var postId = created!.Id!.Value;
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        await client.PostAsync($"/api/posts/{postId}/likes", null);
+
+        var result = await client.GetFromJsonAsync<IndividualPostResult>($"/api/posts/{postId}");
+
+        result!.Succeeded.Should().BeTrue();
+        result.Post.Should().NotBeNull();
+        result.Post!.Id.Should().Be(postId);
+        result.Post.Content.Should().Be("Deep link target #share");
+        result.Post.LikeCount.Should().Be(1);
+        result.Post.LikedByCurrentReader.Should().BeTrue();
+        result.Post.ContentSegments.Should().ContainSingle(s => s.Text == "#share" && s.HashtagText == "share");
+    }
+
+    [Fact]
+    public async Task Individual_post_endpoint_returns_not_found_for_missing_or_deleted_posts()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var createResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Delete from deep link" });
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        var missingResponse = await client.GetAsync($"/api/posts/{Guid.NewGuid()}");
+        await client.DeleteAsync($"/api/posts/{created!.Id}");
+        var deletedResponse = await client.GetAsync($"/api/posts/{created.Id}");
+
+        missingResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        deletedResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Individual_post_endpoint_requires_valid_bearer_token()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+
+        var missingTokenResponse = await client.GetAsync($"/api/posts/{Guid.NewGuid()}");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", "missing-token");
+        var invalidTokenResponse = await client.GetAsync($"/api/posts/{Guid.NewGuid()}");
+
+        missingTokenResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        invalidTokenResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task View_user_posts_include_hashtag_segment_metadata()
     {
         await using var factory = CreateInMemoryFactory();
@@ -749,6 +806,7 @@ public sealed class SocialAppApiSliceTests
     private sealed record ProfileImageSummaryResult(Guid AssetId, string ContentType, long ByteLength, int? Width, int? Height, string ImageUrl);
     private sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
+    private sealed record IndividualPostResult(bool Succeeded, string Message, PostSummaryResult? Post);
     private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
     private sealed record PostMediaSummaryResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
     private sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle, string? HashtagText = null);

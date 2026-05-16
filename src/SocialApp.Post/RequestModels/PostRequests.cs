@@ -3,6 +3,7 @@ using SocialApp.Post.Entities;
 namespace SocialApp.Post.RequestModels;
 
 public sealed record CreatePostRequest(string AuthorHandle, string Content, IReadOnlyList<Guid>? MediaAssetIds = null);
+public sealed record DisplayPostRequest(Guid PostId, string ReaderHandle);
 public sealed record ScrollPostsRequest(string ReaderHandle, int Limit);
 public sealed record SearchPostsRequest(string Query, string? ReaderHandle = null);
 public sealed record FollowUserPostsRequest(string ReaderHandle, string FollowedHandle);

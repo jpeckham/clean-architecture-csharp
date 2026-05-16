@@ -128,6 +128,13 @@ public sealed class SocialAppApiClient(HttpClient http)
             : null;
     }
 
+    public async Task<IndividualPostResult?> GetPostAsync(string sessionToken, Guid postId)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Get, $"/api/posts/{postId}");
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
+        return await ReadAsync<IndividualPostResult>(await http.SendAsync(message));
+    }
+
     public async Task<RecentPostsResult?> SearchPostsAsync(string sessionToken, string query)
     {
         using var message = new HttpRequestMessage(HttpMethod.Get, $"/api/posts/search?query={Uri.EscapeDataString(query)}");
@@ -203,6 +210,7 @@ public sealed record ProfileImageUploadResult(bool Succeeded, string Message, Pr
 public sealed record ProfileImageSummaryResult(Guid AssetId, string StorageKey, string ContentType, long ByteLength, int? Width, int? Height, DateTimeOffset UploadedAt, string ImageUrl);
 public sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
 public sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
+public sealed record IndividualPostResult(bool Succeeded, string Message, PostSummaryResult? Post);
 public sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryResult>? Media = null);
 public sealed record PostMediaSummaryResult(
     Guid AssetId,

@@ -3,6 +3,7 @@ using SocialApp.Post.UseCases;
 namespace SocialApp.Post.Controllers;
 
 public sealed class CreatePostController(ICreatePostInputBoundary input) { public void Create(string authorHandle, string content, IReadOnlyList<Guid>? mediaAssetIds = null) => input.Handle(new(authorHandle, content, mediaAssetIds)); }
+public sealed class DisplayPostController(IDisplayPostInputBoundary input) { public void Display(Guid postId, string readerHandle) => input.Handle(new(postId, readerHandle)); }
 public sealed class ScrollPostsController(IScrollPostsInputBoundary input) { public void Scroll(string readerHandle, int limit) => input.Handle(new(readerHandle, limit)); }
 public sealed class SearchPostsController(ISearchPostsInputBoundary input) { public void Search(string query) => input.Handle(new(query)); }
 public sealed class FollowUserPostsController(IFollowUserPostsInputBoundary input) { public void Follow(string readerHandle, string followedHandle) => input.Handle(new(readerHandle, followedHandle)); }

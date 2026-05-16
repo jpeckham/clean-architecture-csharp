@@ -28,6 +28,7 @@ public sealed record PostSummaryViewModel(
     QuotedPostSummaryViewModel? QuotedPost,
     IReadOnlyList<PostMediaSummaryViewModel>? Media = null);
 public sealed record CreatePostViewModel(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);
+public sealed record DisplayPostViewModel(bool Succeeded, string Message, PostSummaryViewModel? Post);
 public sealed record ScrollPostsViewModel(IReadOnlyList<PostSummaryViewModel> Posts);
 public sealed record SearchPostsViewModel(IReadOnlyList<PostSummaryViewModel> Posts);
 public sealed record FollowUserPostsViewModel(bool Succeeded, string Message);

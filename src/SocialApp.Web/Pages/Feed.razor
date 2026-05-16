@@ -90,69 +90,20 @@
             {
                 @foreach (var item in posts)
                 {
-                    <article class="post">
-                        <div class="post-header">
-                            <div class="post-author-line">
-                                <a class="author-link" href="@UserUrl(item.AuthorHandle)">@item.AuthorHandle</a>
-                                <time class="post-time" datetime="@item.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(item.CreatedAt)</time>
-                            </div>
-                            @if (CanDelete(item))
-                            {
-                                <button type="button" class="danger compact" @onclick="() => DeletePostAsync(item)" disabled="@isBusy">Delete</button>
-                            }
-                        </div>
-                        @if (item.QuotedPost is not null)
-                        {
-                            <div class="quoted-post">
-                                <div class="post-author-line">
-                                    <a class="author-link" href="@UserUrl(item.QuotedPost.AuthorHandle)">@item.QuotedPost.AuthorHandle</a>
-                                    <time class="post-time" datetime="@item.QuotedPost.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(item.QuotedPost.CreatedAt)</time>
-                                </div>
-                                @if (!string.IsNullOrWhiteSpace(item.QuotedPost.Content))
-                                {
-                                    <p>@item.QuotedPost.Content</p>
-                                }
-                                <PostMediaGrid Media="item.QuotedPost.Media" />
-                            </div>
-                        }
-                        <PostContent ContentSegments="@item.ContentSegments" />
-                        <PostMediaGrid Media="@item.Media" />
-                        <div class="post-actions">
-                            <button
-                                type="button"
-                                class="heart-button @(item.LikedByCurrentReader ? "liked" : null)"
-                                aria-label="@(item.LikedByCurrentReader ? "Unlike post" : "Like post")"
-                                title="@(item.LikedByCurrentReader ? "Unlike post" : "Like post")"
-                                @onclick="() => ToggleLikeAsync(item)"
-                                disabled="@isBusy">
-                                <span aria-hidden="true">@(item.LikedByCurrentReader ? "\u2665" : "\u2661")</span>
-                            </button>
-                            <span class="like-count">@item.LikeCount</span>
-                            <button
-                                type="button"
-                                class="repost-button @(item.RepostedByCurrentReader ? "reposted" : null)"
-                                aria-label="@(item.RepostedByCurrentReader ? "Delete your repost" : "Repost")"
-                                title="@(item.RepostedByCurrentReader ? "Delete your repost" : "Repost")"
-                                @onclick="() => ToggleRepostComposerAsync(item)"
-                                disabled="@(isBusy || IsOwnRepostTarget(item))">
-                                <span aria-hidden="true">@("\u27f3")</span>
-                            </button>
-                            <span class="repost-count">@item.RepostCount</span>
-                        </div>
-                        @if (activeRepostPostId == item.Id && !item.RepostedByCurrentReader)
-                        {
-                            <div class="repost-composer">
-                                <InputTextArea @bind-Value="repostContent" placeholder="Add a note..." />
-                                <div class="repost-composer-actions">
-                                    <button type="button" class="compact" @onclick="() => RepostAsync(item)" disabled="@isBusy">
-                                        <span aria-hidden="true">@("\u27f3")</span>
-                                        Repost
-                                    </button>
-                                    <button type="button" class="secondary compact" @onclick="CancelRepost" disabled="@isBusy">Cancel</button>
-                                </div>
-                            </div>
-                        }
-                    </article>
+                    <PostCard
+                        Item="item"
+                        CurrentHandle="@Session.Handle"
+                        IsBusy="@isBusy"
+                        ActiveRepostPostId="@activeRepostPostId"
+                        RepostContent="@repostContent"
+                        RepostContentChanged="value => repostContent = value"
+                        OpenRequested="OpenPost"
+                        ShareRequested="SharePostAsync"
+                        DeleteRequested="DeletePostAsync"
+                        LikeToggled="ToggleLikeAsync"
+                        RepostToggled="ToggleRepostComposerAsync"
+                        RepostSubmitted="RepostAsync"
+                        RepostCanceled="CancelRepost" />
                 }
             }
         </section>
@@ -455,6 +406,17 @@
         repostContent = string.Empty;
     }
 
+    private void OpenPost(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        Navigation.NavigateTo(PostUrl(item.Id));
+    }
+
+    private async Task SharePostAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        var url = Navigation.ToAbsoluteUri(PostUrl(item.Id)).ToString();
+        await Js.InvokeVoidAsync("prompt", "Share this post", url);
+    }
+
     private async Task LoadPostsAsync()
     {
         if (!Session.IsLoggedIn)
@@ -529,6 +491,8 @@
         string.Equals(item.AuthorHandle, Session.Handle, StringComparison.OrdinalIgnoreCase);
 
     private static string UserUrl(string handle) => $"/users/{Uri.EscapeDataString(handle)}";
+
+    private static string PostUrl(Guid postId) => $"/posts/{postId}";
 
     private static string FormatTimestamp(DateTimeOffset createdAt)
     {

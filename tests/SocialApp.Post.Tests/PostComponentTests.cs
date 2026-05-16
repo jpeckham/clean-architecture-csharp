@@ -228,6 +228,42 @@ public sealed class PostComponentTests
     }
 
     [Fact]
+    public void Display_post_returns_one_active_post_with_reader_state()
+    {
+        var posts = new InMemoryPostGateway();
+        var post = posts.Save(SocialPost.Create("@ada", "deep link target"));
+        post.AddLike("@grace");
+        posts.Save(post);
+        var output = new CapturingDisplayPostOutput();
+
+        new DisplayPostInteractor(posts, output).Handle(new(post.Id, "@grace"));
+
+        output.Response.Should().NotBeNull();
+        output.Response!.Succeeded.Should().BeTrue();
+        output.Response.Post.Should().NotBeNull();
+        output.Response.Post!.Id.Should().Be(post.Id);
+        output.Response.Post.LikedByCurrentReader.Should().BeTrue();
+        output.Response.Post.LikeCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void Display_post_returns_not_found_for_deleted_posts()
+    {
+        var posts = new InMemoryPostGateway();
+        var post = posts.Save(SocialPost.Create("@ada", "deleted target"));
+        post.DeleteBy("@ada");
+        posts.Save(post);
+        var output = new CapturingDisplayPostOutput();
+
+        new DisplayPostInteractor(posts, output).Handle(new(post.Id, "@ada"));
+
+        output.Response.Should().NotBeNull();
+        output.Response!.Succeeded.Should().BeFalse();
+        output.Response.MessageKey.Should().Be(PostMessageKeys.PostNotFound);
+        output.Response.Post.Should().BeNull();
+    }
+
+    [Fact]
     public void Create_post_interactor_returns_message_key_not_presentation_copy()
     {
         var posts = new InMemoryPostGateway();
@@ -627,6 +663,13 @@ public sealed class PostComponentTests
         public SearchPostsResponse? Response { get; private set; }
 
         public void Present(SearchPostsResponse response) => Response = response;
+    }
+
+    private sealed class CapturingDisplayPostOutput : IDisplayPostOutputBoundary
+    {
+        public DisplayPostResponse? Response { get; private set; }
+
+        public void Present(DisplayPostResponse response) => Response = response;
     }
 
     private sealed class InMemoryPostMediaStorageGateway : IPostMediaStorageGateway

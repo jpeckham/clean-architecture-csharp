@@ -91,6 +91,17 @@ public sealed class CompletePostMediaUploadInteractor(IPostMediaStorageGateway m
     }
 }
 
+public sealed class DisplayPostInteractor(IPostGateway posts, IDisplayPostOutputBoundary output) : IDisplayPostInputBoundary
+{
+    public void Handle(DisplayPostRequest request)
+    {
+        var post = posts.FindById(request.PostId);
+        output.Present(post is null || post.IsDeleted
+            ? new(false, PostMessageKeys.PostNotFound, null)
+            : new(true, PostMessageKeys.PostFound, PostSummaryProjection.ToSummary(post, posts, request.ReaderHandle)));
+    }
+}
+
 public sealed class ScrollPostsInteractor(IPostGateway posts, IScrollPostsOutputBoundary output) : IScrollPostsInputBoundary
 {
     public void Handle(ScrollPostsRequest request) => output.Present(new(posts.ScrollFor(request.ReaderHandle, request.Limit).Select(post => PostSummaryProjection.ToSummary(post, posts, request.ReaderHandle)).ToArray()));

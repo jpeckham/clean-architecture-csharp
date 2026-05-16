@@ -1,0 +1,198 @@
+@page "/posts/{PostId:guid}"
+@inject SocialApp.Web.Services.SocialAppApiClient Api
+@inject SocialApp.Web.Services.AppSession Session
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+<PageTitle>Post - SocialApp</PageTitle>
+
+<section class="workspace post-details">
+    <header class="masthead">
+        <div>
+            <h1>Post</h1>
+            <p>Signed in as @Session.Handle</p>
+        </div>
+        <div class="actions">
+            <button type="button" class="secondary" @onclick="BackToFeed">Feed</button>
+            <button type="button" class="secondary" @onclick="RefreshAsync" disabled="@isBusy">Refresh</button>
+        </div>
+    </header>
+
+    <section class="feed single-post-feed">
+        @if (isLoading)
+        {
+            <p class="empty">Loading post...</p>
+        }
+        else if (post is null)
+        {
+            <p class="empty">Post not found.</p>
+        }
+        else
+        {
+            <PostCard
+                Item="post"
+                CurrentHandle="@Session.Handle"
+                IsBusy="@isBusy"
+                ActiveRepostPostId="@activeRepostPostId"
+                RepostContent="@repostContent"
+                RepostContentChanged="value => repostContent = value"
+                OpenRequested="OpenPost"
+                ShareRequested="SharePostAsync"
+                DeleteRequested="DeletePostAsync"
+                LikeToggled="ToggleLikeAsync"
+                RepostToggled="ToggleRepostComposerAsync"
+                RepostSubmitted="RepostAsync"
+                RepostCanceled="CancelRepost" />
+        }
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <p class="message">@message</p>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public Guid PostId { get; set; }
+
+    private SocialApp.Web.Services.PostSummaryResult? post;
+    private Guid? activeRepostPostId;
+    private string repostContent = string.Empty;
+    private string? message;
+    private bool isBusy;
+    private bool isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Session.IsLoggedIn)
+        {
+            Navigation.NavigateTo($"/?returnUrl={Uri.EscapeDataString(Navigation.ToBaseRelativePath(Navigation.Uri))}");
+            return;
+        }
+
+        await LoadPostAsync();
+    }
+
+    private async Task LoadPostAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await Api.GetPostAsync(Session.SessionToken!, PostId);
+            post = result?.Succeeded == true ? result.Post : null;
+            message = result is { Succeeded: false } ? result.Message : null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RefreshAsync() => await RunAsync(LoadPostAsync);
+
+    private void BackToFeed() => Navigation.NavigateTo("/feed");
+
+    private void OpenPost(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        if (item.Id != PostId)
+        {
+            Navigation.NavigateTo(PostUrl(item.Id));
+        }
+    }
+
+    private async Task SharePostAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        var url = Navigation.ToAbsoluteUri(PostUrl(item.Id)).ToString();
+        await Js.InvokeVoidAsync("prompt", "Share this post", url);
+    }
+
+    private async Task DeletePostAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        var confirmed = await Js.InvokeAsync<bool>("confirm", "Delete this post?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var result = await Api.DeletePostAsync(Session.SessionToken!, item.Id);
+            message = result?.Message ?? "Delete failed.";
+            await LoadPostAsync();
+        });
+    }
+
+    private async Task ToggleLikeAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        await RunAsync(async () =>
+        {
+            var result = item.LikedByCurrentReader
+                ? await Api.DeleteLikeAsync(Session.SessionToken!, item.Id)
+                : await Api.LikePostAsync(Session.SessionToken!, item.Id);
+            message = result?.Message ?? "Like update failed.";
+            await LoadPostAsync();
+        });
+    }
+
+    private async Task ToggleRepostComposerAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        if (item.RepostedByCurrentReader)
+        {
+            var confirmed = await Js.InvokeAsync<bool>("confirm", "Delete your repost of this post?");
+            if (!confirmed)
+            {
+                return;
+            }
+
+            await RunAsync(async () =>
+            {
+                var result = await Api.DeleteMyRepostAsync(Session.SessionToken!, item.Id);
+                message = result?.Message ?? "Delete repost failed.";
+                await LoadPostAsync();
+            });
+            return;
+        }
+
+        activeRepostPostId = activeRepostPostId == item.Id ? null : item.Id;
+        repostContent = string.Empty;
+    }
+
+    private async Task RepostAsync(SocialApp.Web.Services.PostSummaryResult item)
+    {
+        await RunAsync(async () =>
+        {
+            var result = await Api.RepostAsync(Session.SessionToken!, item.Id, new(repostContent));
+            message = result?.Message ?? "Repost failed.";
+            activeRepostPostId = null;
+            repostContent = string.Empty;
+            await LoadPostAsync();
+        });
+    }
+
+    private void CancelRepost()
+    {
+        activeRepostPostId = null;
+        repostContent = string.Empty;
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        isBusy = true;
+        message = null;
+        try
+        {
+            await action();
+        }
+        catch (HttpRequestException ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private static string PostUrl(Guid postId) => $"/posts/{postId}";
+}

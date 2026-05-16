@@ -235,6 +235,11 @@ form {
     padding: 18px;
 }
 
+.single-post-feed {
+    margin: 0 auto;
+    max-width: 820px;
+}
+
 .panel h2,
 .feed h2 {
     margin: 0;
@@ -272,11 +277,33 @@ form {
     padding: 18px;
 }
 
+.clickable-post {
+    cursor: pointer;
+    transition: border-color .16s ease, transform .16s ease;
+}
+
+.clickable-post:hover,
+.clickable-post:focus-visible {
+    border-color: var(--border-strong);
+}
+
+.clickable-post:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
 .post-header {
     align-items: center;
     display: flex;
     gap: 12px;
     justify-content: space-between;
+}
+
+.post-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
 }
 
 .post-author-line {

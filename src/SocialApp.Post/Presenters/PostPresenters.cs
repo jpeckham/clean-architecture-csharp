@@ -12,6 +12,12 @@ public sealed class CreatePostPresenter : ICreatePostOutputBoundary
     public void Present(CreatePostResponse response) => ViewModel = new(response.Succeeded, PostMessages.For(response.MessageKey), response.Post?.Id, response.Post?.AuthorHandle);
 }
 
+public sealed class DisplayPostPresenter : IDisplayPostOutputBoundary
+{
+    public DisplayPostViewModel? ViewModel { get; private set; }
+    public void Present(DisplayPostResponse response) => ViewModel = new(response.Succeeded, PostMessages.For(response.MessageKey), response.Post is null ? null : PostPresenterMapping.ToViewModel(response.Post));
+}
+
 public sealed class ScrollPostsPresenter : IScrollPostsOutputBoundary
 {
     public ScrollPostsViewModel? ViewModel { get; private set; }
@@ -148,6 +154,7 @@ internal static class PostMessages
     private static readonly IReadOnlyDictionary<string, string> Messages = new Dictionary<string, string>
     {
         [PostMessageKeys.PostCreated] = "Post created.",
+        [PostMessageKeys.PostFound] = "Post found.",
         [PostMessageKeys.UserFollowed] = "User followed.",
         [PostMessageKeys.UserBlocked] = "User blocked.",
         [PostMessageKeys.PostNotFound] = "Post not found.",

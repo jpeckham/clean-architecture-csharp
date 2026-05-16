@@ -1,0 +1,167 @@
+@using System.Globalization
+
+<article class="post clickable-post" role="link" tabindex="0" @onclick="OpenPostAsync" @onkeydown="HandleKeyDownAsync">
+    <div class="post-header">
+        <div class="post-author-line">
+            <a class="author-link" href="@UserUrl(Item.AuthorHandle)" @onclick:stopPropagation="true">@Item.AuthorHandle</a>
+            <time class="post-time" datetime="@Item.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.CreatedAt)</time>
+        </div>
+        <div class="post-header-actions">
+            <button type="button" class="secondary compact" @onclick="ShareAsync" @onclick:stopPropagation="true" disabled="@IsBusy">Share</button>
+            @if (CanDelete)
+            {
+                <button type="button" class="danger compact" @onclick="DeleteAsync" @onclick:stopPropagation="true" disabled="@IsBusy">Delete</button>
+            }
+        </div>
+    </div>
+    @if (Item.QuotedPost is not null)
+    {
+        <div class="quoted-post">
+            <div class="post-author-line">
+                <a class="author-link" href="@UserUrl(Item.QuotedPost.AuthorHandle)" @onclick:stopPropagation="true">@Item.QuotedPost.AuthorHandle</a>
+                <time class="post-time" datetime="@Item.QuotedPost.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.QuotedPost.CreatedAt)</time>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Item.QuotedPost.Content))
+            {
+                <p>@Item.QuotedPost.Content</p>
+            }
+            <PostMediaGrid Media="Item.QuotedPost.Media" />
+        </div>
+    }
+    <PostContent ContentSegments="@Item.ContentSegments" />
+    <PostMediaGrid Media="@Item.Media" />
+    <div class="post-actions" @onclick:stopPropagation="true">
+        <button
+            type="button"
+            class="heart-button @(Item.LikedByCurrentReader ? "liked" : null)"
+            aria-label="@(Item.LikedByCurrentReader ? "Unlike post" : "Like post")"
+            title="@(Item.LikedByCurrentReader ? "Unlike post" : "Like post")"
+            @onclick="LikeAsync"
+            disabled="@IsBusy">
+            <span aria-hidden="true">@(Item.LikedByCurrentReader ? "\u2665" : "\u2661")</span>
+        </button>
+        <span class="like-count">@Item.LikeCount</span>
+        <button
+            type="button"
+            class="repost-button @(Item.RepostedByCurrentReader ? "reposted" : null)"
+            aria-label="@(Item.RepostedByCurrentReader ? "Delete your repost" : "Repost")"
+            title="@(Item.RepostedByCurrentReader ? "Delete your repost" : "Repost")"
+            @onclick="ToggleRepostAsync"
+            disabled="@(IsBusy || IsOwnRepostTarget)">
+            <span aria-hidden="true">@("\u27f3")</span>
+        </button>
+        <span class="repost-count">@Item.RepostCount</span>
+    </div>
+    @if (ActiveRepostPostId == Item.Id && !Item.RepostedByCurrentReader)
+    {
+        <div class="repost-composer" @onclick:stopPropagation="true">
+            <InputTextArea Value="@RepostContent" ValueChanged="RepostContentChanged" ValueExpression="() => RepostContent" placeholder="Add a note..." />
+            <div class="repost-composer-actions">
+                <button type="button" class="compact" @onclick="RepostAsync" disabled="@IsBusy">
+                    <span aria-hidden="true">@("\u27f3")</span>
+                    Repost
+                </button>
+                <button type="button" class="secondary compact" @onclick="CancelRepostAsync" disabled="@IsBusy">Cancel</button>
+            </div>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public SocialApp.Web.Services.PostSummaryResult Item { get; set; } = default!;
+
+    [Parameter]
+    public string? CurrentHandle { get; set; }
+
+    [Parameter]
+    public bool IsBusy { get; set; }
+
+    [Parameter]
+    public Guid? ActiveRepostPostId { get; set; }
+
+    [Parameter]
+    public string RepostContent { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> RepostContentChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> OpenRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> ShareRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> DeleteRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> LikeToggled { get; set; }
+
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> RepostToggled { get; set; }
+
+    [Parameter]
+    public EventCallback<SocialApp.Web.Services.PostSummaryResult> RepostSubmitted { get; set; }
+
+    [Parameter]
+    public EventCallback RepostCanceled { get; set; }
+
+    private bool CanDelete =>
+        string.Equals(Item.AuthorHandle, CurrentHandle, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsOwnRepostTarget
+    {
+        get
+        {
+            var targetAuthor = Item.QuotedPost?.AuthorHandle ?? Item.AuthorHandle;
+            return string.Equals(targetAuthor, CurrentHandle, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private Task OpenPostAsync() => OpenRequested.InvokeAsync(Item);
+    private Task ShareAsync() => ShareRequested.InvokeAsync(Item);
+    private Task DeleteAsync() => DeleteRequested.InvokeAsync(Item);
+    private Task LikeAsync() => LikeToggled.InvokeAsync(Item);
+    private Task ToggleRepostAsync() => RepostToggled.InvokeAsync(Item);
+    private Task RepostAsync() => RepostSubmitted.InvokeAsync(Item);
+    private Task CancelRepostAsync() => RepostCanceled.InvokeAsync();
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            await OpenPostAsync();
+        }
+    }
+
+    private static string UserUrl(string handle) => $"/users/{Uri.EscapeDataString(handle)}";
+
+    private static string FormatTimestamp(DateTimeOffset createdAt)
+    {
+        var local = createdAt.ToLocalTime();
+        var culture = CultureInfo.CurrentCulture;
+        if (!culture.Name.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return local.ToString("f", culture);
+        }
+
+        return $"{local.ToString("MMMM", culture)} {local.Day}{OrdinalSuffix(local.Day)}, {local.ToString("yyyy h:mm tt", culture)}";
+    }
+
+    private static string OrdinalSuffix(int day)
+    {
+        if (day is 11 or 12 or 13)
+        {
+            return "th";
+        }
+
+        return (day % 10) switch
+        {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th"
+        };
+    }
+}

@@ -39,6 +39,7 @@ public static class SocialAppSliceEndpoints
         endpoints.MapGet("/api/post-media/{assetId:guid}", GetPostMedia);
         endpoints.MapPut("/api/media/uploads/{target}/{assetId:guid}", StoreMediaUpload);
         endpoints.MapPost("/api/posts", CreatePost);
+        endpoints.MapGet("/api/posts/{postId:guid}", GetPost);
         endpoints.MapDelete("/api/posts/{postId:guid}", DeletePost);
         endpoints.MapPost("/api/posts/{postId:guid}/likes", AddLikeToPost);
         endpoints.MapDelete("/api/posts/{postId:guid}/likes", DeleteLikeFromPost);
@@ -528,6 +529,22 @@ public static class SocialAppSliceEndpoints
             : Results.BadRequest(presenter.ViewModel);
     }
 
+    private static IResult GetPost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
+    {
+        var reader = ReadAuthenticatedUser(httpRequest, sessions);
+        if (reader is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var presenter = new DisplayPostPresenter();
+        new DisplayPostController(new DisplayPostInteractor(posts, presenter)).Display(postId, reader.Handle);
+
+        return presenter.ViewModel is { Succeeded: true } viewModel
+            ? Results.Ok(ToHttpResponse(viewModel))
+            : Results.NotFound(ToHttpResponse(presenter.ViewModel!));
+    }
+
     private static IResult DeletePost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
     {
         var token = ReadBearerToken(httpRequest);
@@ -766,6 +783,9 @@ public static class SocialAppSliceEndpoints
     private static PostsHttpResult ToHttpResponse(SearchPostsViewModel viewModel) =>
         new(viewModel.Posts.Select(ToHttpPostSummary).ToArray());
 
+    private static IndividualPostHttpResult ToHttpResponse(DisplayPostViewModel viewModel) =>
+        new(viewModel.Succeeded, viewModel.Message, viewModel.Post is null ? null : ToHttpPostSummary(viewModel.Post));
+
     private static PostSummaryHttpResult ToHttpPostSummary(PostSummaryViewModel post) =>
         new(
             post.Id,
@@ -826,6 +846,7 @@ public static class SocialAppSliceEndpoints
 
     private sealed record PostContentSegmentHttpResult(int Sequence, string Text, string? MentionHandle, string? HashtagText = null);
     private sealed record PostsHttpResult(IReadOnlyList<PostSummaryHttpResult> Posts);
+    private sealed record IndividualPostHttpResult(bool Succeeded, string Message, PostSummaryHttpResult? Post);
     private sealed record QuotedPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryHttpResult>? Media = null);
     private sealed record PostMediaSummaryHttpResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
     private sealed record PostSummaryHttpResult(Guid Id, string AuthorHandle, IReadOnlyList<PostContentSegmentHttpResult> ContentSegments, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);

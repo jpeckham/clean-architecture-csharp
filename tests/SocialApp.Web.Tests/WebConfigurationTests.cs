@@ -27,6 +27,46 @@ public sealed class WebConfigurationTests
     }
 
     [Fact]
+    public void Post_details_page_has_stable_deep_link_route()
+    {
+        typeof(Pages.PostDetails)
+            .GetCustomAttributes<RouteAttribute>()
+            .Select(attribute => attribute.Template)
+            .Should().ContainSingle("/posts/{PostId:guid}");
+    }
+
+    [Fact]
+    public void Deep_link_auth_flow_preserves_return_url_after_login()
+    {
+        var root = FindRepositoryRoot();
+        var postDetails = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "PostDetails.razor"));
+        var login = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "Login.razor"));
+
+        postDetails.Should().Contain("returnUrl=");
+        login.Should().Contain("[SupplyParameterFromQuery]");
+        login.Should().Contain("NavigateAfterSignIn");
+        login.Should().Contain("ReturnUrl");
+    }
+
+    [Fact]
+    public void Web_client_exposes_individual_post_fetch_method()
+    {
+        typeof(Services.SocialAppApiClient)
+            .GetMethod("GetPostAsync", new[] { typeof(string), typeof(Guid) })
+            .Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Feed_uses_shared_post_card_component_for_post_actions()
+    {
+        typeof(Components.PostCard).Should().NotBeNull();
+
+        var root = FindRepositoryRoot();
+        var feed = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "Feed.razor"));
+        feed.Should().Contain("<PostCard");
+    }
+
+    [Fact]
     public void Feed_styles_use_dark_professional_dashboard_theme()
     {
         var css = ReadWebStylesheet();
