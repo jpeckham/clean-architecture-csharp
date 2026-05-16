@@ -131,7 +131,7 @@ public sealed class DeleteLikeFromPostInteractor(IPostGateway posts, IDeleteLike
     {
         var post = posts.FindById(request.PostId);
         if (post is null) { output.Present(new(false, PostMessageKeys.PostNotFound)); return; }
-        if (!post.LikedBy.Contains(request.Handle)) { throw new InvalidOperationException("Cannot delete a like that does not exist."); }
+        if (!post.LikedBy.Contains(SocialPost.NormalizeHandle(request.Handle))) { throw new InvalidOperationException("Cannot delete a like that does not exist."); }
         post.DeleteLike(request.Handle);
         posts.Save(post);
         output.Present(new(true, PostMessageKeys.LikeDeleted));
@@ -161,7 +161,7 @@ public sealed class RepostInteractor(IPostGateway posts, IRepostOutputBoundary o
 
         if (targetPost is null) { output.Present(new(false, PostMessageKeys.OriginalPostNotFound, null)); return; }
 
-        if (string.Equals(targetPost.AuthorHandle, request.AuthorHandle, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(targetPost.AuthorHandle, SocialPost.NormalizeHandle(request.AuthorHandle), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Users cannot repost their own posts.");
         }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using SocialApp.Infrastructure.LocalStorage.Options;
+using SocialApp.User.Entities;
 using SocialApp.User.Gateways;
 
 namespace SocialApp.Infrastructure.LocalStorage.Gateways;
@@ -30,7 +31,7 @@ public sealed class FileSystemProfileImageStorageGateway(IOptions<LocalMediaStor
         var assetId = Guid.NewGuid();
         var owner = CleanOwner(upload.OwnerHandle);
         var storageKey = $"profile-images/{owner}/{assetId}";
-        var pending = new ReservedProfileImageUpload(assetId, upload.OwnerHandle.Trim(), storageKey, upload.ContentType.Trim(), upload.ByteLength);
+        var pending = new ReservedProfileImageUpload(assetId, owner, storageKey, upload.ContentType.Trim(), upload.ByteLength);
         WriteJson(PendingPath(assetId), pending);
         return new(assetId, storageKey, $"/api/media/uploads/profile-images/{assetId}");
     }
@@ -38,7 +39,7 @@ public sealed class FileSystemProfileImageStorageGateway(IOptions<LocalMediaStor
     public ReservedProfileImageUpload? CompleteUpload(CompleteReservedProfileImageUpload upload)
     {
         var pending = ReadJson<ReservedProfileImageUpload>(PendingPath(upload.AssetId));
-        if (pending is null || !string.Equals(pending.OwnerHandle, upload.OwnerHandle, StringComparison.OrdinalIgnoreCase))
+        if (pending is null || !string.Equals(pending.OwnerHandle, UserAccount.NormalizeHandle(upload.OwnerHandle), StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -90,7 +91,7 @@ public sealed class FileSystemProfileImageStorageGateway(IOptions<LocalMediaStor
     private string CompletedPath(Guid assetId) => Path.Combine(MetadataPath(), $"{assetId}.completed.json");
     private string ContentPath(Guid assetId) => Path.Combine(UploadsPath(), assetId.ToString("N"));
 
-    private static string CleanOwner(string ownerHandle) => ownerHandle.Trim().TrimStart('@');
+    private static string CleanOwner(string ownerHandle) => UserAccount.NormalizeHandle(ownerHandle);
 
     private static void DeleteIfExists(string path)
     {

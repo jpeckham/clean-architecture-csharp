@@ -172,7 +172,7 @@ public sealed class InMemoryUserGateway : IUserGateway
             : null;
 
     public UserAccount? FindByHandle(string handle) =>
-        _users.SingleOrDefault(u => string.Equals(u.Handle, handle, StringComparison.OrdinalIgnoreCase));
+        _users.SingleOrDefault(u => string.Equals(u.Handle, UserAccount.NormalizeHandle(handle), StringComparison.OrdinalIgnoreCase));
 
     public UserAccount? FindByEmail(string email) =>
         _users.SingleOrDefault(u => string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
@@ -273,7 +273,7 @@ public sealed class InMemoryVerificationCodeGateway(IClock? clock = null) : IVer
 
     public bool Verify(string email, string purpose, string code)
     {
-        if (!_codes.TryGetValue((email, purpose), out var value) || value.ExpiresAt < _clock.UtcNow || value.Code != code)
+        if (!_codes.TryGetValue((email, purpose), out var value) || value.ExpiresAt < _clock.UtcNow || value.Code != NormalizeCode(code))
         {
             return false;
         }
@@ -284,13 +284,19 @@ public sealed class InMemoryVerificationCodeGateway(IClock? clock = null) : IVer
 
     public string? FindActiveCode(string email) =>
         _codes.FirstOrDefault(pair => string.Equals(pair.Key.Email, email, StringComparison.OrdinalIgnoreCase) && pair.Value.ExpiresAt >= _clock.UtcNow).Value.Code;
+
+    private static string NormalizeCode(string code)
+    {
+        var digits = new string(code.Where(char.IsDigit).ToArray());
+        return digits.Length == 6 ? digits : code.Trim();
+    }
 }
 
 public sealed class InMemoryRememberedDeviceGateway : IRememberedDeviceGateway
 {
     private readonly HashSet<string> _remembered = new(StringComparer.OrdinalIgnoreCase);
-    public bool IsRemembered(string handle, string deviceId) => _remembered.Contains($"{handle}|{deviceId}");
-    public void Remember(string handle, string deviceId) => _remembered.Add($"{handle}|{deviceId}");
+    public bool IsRemembered(string handle, string deviceId) => _remembered.Contains($"{UserAccount.NormalizeHandle(handle)}|{deviceId}");
+    public void Remember(string handle, string deviceId) => _remembered.Add($"{UserAccount.NormalizeHandle(handle)}|{deviceId}");
 }
 
 public sealed class InMemoryPasswordResetTokenGateway(IClock clock) : IPasswordResetTokenGateway

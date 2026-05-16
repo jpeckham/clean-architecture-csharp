@@ -53,7 +53,8 @@ public sealed class CosmosMongoUserGateway(CosmosMongoCollections collections, I
     }
 
     public UserAccount? FindByHandle(string handle) =>
-        _users.Find(u => u.Handle.ToLower() == handle.ToLower()).FirstOrDefault() is { } document
+        _users.Find(u => u.Handle.ToLower() == UserAccount.NormalizeHandle(handle).ToLower() ||
+                         u.Handle.ToLower() == $"@{UserAccount.NormalizeHandle(handle)}".ToLower()).FirstOrDefault() is { } document
             ? CosmosMongoMappers.ToEntity(document)
             : null;
 

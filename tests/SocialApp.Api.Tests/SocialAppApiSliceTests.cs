@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -82,7 +83,7 @@ public sealed class SocialAppApiSliceTests
         repostView.Content.Should().Be("Grace quote");
         repostView.OriginalPostId.Should().Be(originalId);
         repostView.QuotedPost.Should().NotBeNull();
-        repostView.QuotedPost!.AuthorHandle.Should().Be("@ada");
+        repostView.QuotedPost!.AuthorHandle.Should().Be("ada");
         repostView.QuotedPost.Content.Should().Be("Original API post");
 
         var duplicateRepostResponse = await client.PostAsJsonAsync($"/api/posts/{originalId}/reposts", new { content = "Grace duplicate" });
@@ -221,9 +222,9 @@ public sealed class SocialAppApiSliceTests
 
         result!.Succeeded.Should().BeTrue();
         result.DisplayName.Should().Be("Ada Lovelace");
-        result.Handle.Should().Be("@ada");
+        result.Handle.Should().Be("ada");
         result.Posts.Should().HaveCount(2);
-        result.Posts.Should().OnlyContain(p => p.AuthorHandle == "@ada");
+        result.Posts.Should().OnlyContain(p => p.AuthorHandle == "ada");
         result.Posts.Should().Contain(p =>
             p.Id == adaPost.Id &&
             p.Content == "Ada profile post" &&
@@ -578,7 +579,7 @@ public sealed class SocialAppApiSliceTests
         createPostResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var recentPosts = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?readerHandle=@ada&limit=20");
-        recentPosts!.Posts.Should().ContainSingle(p => p.AuthorHandle == "@ada" && p.Content == "First post from the API");
+        recentPosts!.Posts.Should().ContainSingle(p => p.AuthorHandle == "ada" && p.Content == "First post from the API");
         recentPosts.Posts.Should().NotContain(p => p.AuthorHandle == "@spoofed");
     }
 
@@ -614,6 +615,43 @@ public sealed class SocialAppApiSliceTests
         emails!.Emails.Should().ContainSingle(email =>
             email.To == "ada-dev@example.com" &&
             email.Subject.Contains("Verify", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Registration_accepts_plain_handles_and_pasted_email_codes()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+
+        var registerResponse = await client.PostAsJsonAsync("/api/registrations", new
+        {
+            displayName = "Ada Lovelace",
+            handle = "ada-plain",
+            email = "ada-plain@example.com",
+            password = "Correct9!"
+        });
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var emails = await client.GetFromJsonAsync<DevEmailsResult>("/dev/emails");
+        var code = Regex.Match(emails!.Emails.Single(email => email.To == "ada-plain@example.com").Body, @"\d{6}").Value;
+
+        var verifyResponse = await client.PostAsJsonAsync("/api/registrations/verify", new
+        {
+            email = "ada-plain@example.com",
+            code = $"{code}."
+        });
+
+        verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var loginResponse = await client.PostAsJsonAsync("/api/sessions", new
+        {
+            email = "ada-plain@example.com",
+            password = "Correct9!"
+        });
+        var login = await loginResponse.Content.ReadFromJsonAsync<AuthResult>();
+
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        login!.Handle.Should().Be("ada-plain");
     }
 
     [Fact]

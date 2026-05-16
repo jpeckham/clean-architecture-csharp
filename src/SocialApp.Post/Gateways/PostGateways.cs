@@ -70,15 +70,15 @@ public sealed class InMemoryPostGateway : IPostGateway
         _posts.SingleOrDefault(p =>
             !p.IsDeleted &&
             p.OriginalPostId == originalPostId &&
-            string.Equals(p.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase));
+            string.Equals(p.AuthorHandle, SocialPost.NormalizeHandle(authorHandle), StringComparison.OrdinalIgnoreCase));
 
     public int CountActiveReposts(Guid originalPostId) =>
         _posts.Count(p => !p.IsDeleted && p.OriginalPostId == originalPostId);
 
     public IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit)
     {
-        var follows = _follows.GetValueOrDefault(readerHandle) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var blocks = _blocks.GetValueOrDefault(readerHandle) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var follows = _follows.GetValueOrDefault(SocialPost.NormalizeHandle(readerHandle)) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var blocks = _blocks.GetValueOrDefault(SocialPost.NormalizeHandle(readerHandle)) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         return _posts.Where(p => !p.IsDeleted)
             .Where(p => follows.Count == 0 || follows.Contains(p.AuthorHandle))
@@ -90,14 +90,16 @@ public sealed class InMemoryPostGateway : IPostGateway
 
     public IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit) =>
         _posts.Where(p => !p.IsDeleted)
-            .Where(p => string.Equals(p.AuthorHandle, authorHandle, StringComparison.OrdinalIgnoreCase))
+            .Where(p => string.Equals(p.AuthorHandle, SocialPost.NormalizeHandle(authorHandle), StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(p => p.CreatedAt)
             .Take(limit)
             .ToArray();
 
-    public void Follow(string readerHandle, string followedHandle) => SetFor(_follows, readerHandle).Add(followedHandle);
+    public void Follow(string readerHandle, string followedHandle) =>
+        SetFor(_follows, SocialPost.NormalizeHandle(readerHandle)).Add(SocialPost.NormalizeHandle(followedHandle));
 
-    public void Block(string readerHandle, string blockedHandle) => SetFor(_blocks, readerHandle).Add(blockedHandle);
+    public void Block(string readerHandle, string blockedHandle) =>
+        SetFor(_blocks, SocialPost.NormalizeHandle(readerHandle)).Add(SocialPost.NormalizeHandle(blockedHandle));
 
     private static HashSet<string> SetFor(Dictionary<string, HashSet<string>> source, string key)
     {
@@ -148,10 +150,11 @@ public sealed class InMemoryPostMediaStorageGateway : IPostMediaStorageGateway
         }
 
         var assetId = Guid.NewGuid();
-        var storageKey = $"post-media/{upload.OwnerHandle.Trim().TrimStart('@')}/{assetId}";
+        var ownerHandle = SocialPost.NormalizeHandle(upload.OwnerHandle);
+        var storageKey = $"post-media/{ownerHandle}/{assetId}";
         _pending[assetId] = new ReservedPostMediaUpload(upload with
         {
-            OwnerHandle = upload.OwnerHandle.Trim(),
+            OwnerHandle = ownerHandle,
             ContentType = upload.ContentType.Trim()
         }, storageKey);
 
@@ -166,7 +169,7 @@ public sealed class InMemoryPostMediaStorageGateway : IPostMediaStorageGateway
     public PostMediaItem? CompleteUpload(CompleteReservedPostMediaUpload upload)
     {
         if (!_pending.TryGetValue(upload.AssetId, out var pending) ||
-            !string.Equals(pending.Upload.OwnerHandle, upload.OwnerHandle, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(pending.Upload.OwnerHandle, SocialPost.NormalizeHandle(upload.OwnerHandle), StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -192,7 +195,7 @@ public sealed class InMemoryPostMediaStorageGateway : IPostMediaStorageGateway
     public PostMediaItem? FindCompletedAsset(Guid assetId, string ownerHandle)
     {
         return _completed.TryGetValue(assetId, out var completed) &&
-               string.Equals(completed.OwnerHandle, ownerHandle, StringComparison.OrdinalIgnoreCase)
+               string.Equals(completed.OwnerHandle, SocialPost.NormalizeHandle(ownerHandle), StringComparison.OrdinalIgnoreCase)
             ? completed.Item
             : null;
     }

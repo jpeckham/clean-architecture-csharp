@@ -14,12 +14,41 @@ public sealed class UserComponentTests
     [Fact]
     public void User_account_requires_valid_handle_and_credentials()
     {
-        var account = UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "Correct9!");
+        var account = UserAccount.CreateWithCredentials("Ada Lovelace", "ada", "ada@example.com", "Correct9!");
 
-        account.Handle.Should().Be("@ada");
+        account.Handle.Should().Be("ada");
+        UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada2@example.com", "Correct9!")
+            .Handle.Should().Be("ada");
         account.Credentials.Should().Be("Correct9!");
-        Action invalidCredentials = () => UserAccount.CreateWithCredentials("Ada Lovelace", "@ada", "ada@example.com", "");
+        Action invalidHandle = () => UserAccount.CreateWithCredentials("Ada Lovelace", "@", "ada@example.com", "Correct9!");
+        invalidHandle.Should().Throw<ArgumentException>().WithMessage("*Handle*");
+        Action invalidCredentials = () => UserAccount.CreateWithCredentials("Ada Lovelace", "ada", "ada@example.com", "");
         invalidCredentials.Should().Throw<ArgumentException>().WithMessage("*Credentials*");
+    }
+
+    [Fact]
+    public void Registration_verifies_handle_without_at_sign_and_allows_legacy_lookup()
+    {
+        var users = new InMemoryUserGateway();
+        var registrations = new InMemoryPendingRegistrationGateway();
+        var codes = new InMemoryVerificationCodeGateway();
+        var email = new InMemoryEmailGateway();
+        var registerPresenter = new RegisterAccountPresenter();
+
+        new RegisterAccountController(new RegisterAccountInteractor(users, registrations, codes, email, registerPresenter))
+            .Register("Ada Lovelace", "ada", "ada@example.com", "Correct9!");
+
+        registerPresenter.ViewModel!.Succeeded.Should().BeTrue();
+
+        var verifyPresenter = new VerifyRegistrationPresenter();
+        new VerifyRegistrationController(new VerifyRegistrationInteractor(users, registrations, codes, verifyPresenter))
+            .Verify("ada@example.com", codes.FindActiveCode("ada@example.com")!);
+
+        verifyPresenter.ViewModel!.Succeeded.Should().BeTrue();
+        users.FindByHandle("ada").Should().NotBeNull();
+        users.FindByHandle("@ada").Should().NotBeNull();
+        users.FindByHandle("ada")!.Handle.Should().Be("ada");
+        users.Authenticate("ada@example.com", "Correct9!").Should().NotBeNull();
     }
 
     [Fact]
@@ -29,7 +58,7 @@ public sealed class UserComponentTests
         var account = UserAccount.Rehydrate(id, "Ada Lovelace", "@ada", "ada@example.com", "opaque-credentials");
 
         account.Id.Should().Be(id);
-        account.Handle.Should().Be("@ada");
+        account.Handle.Should().Be("ada");
         account.Credentials.Should().Be("opaque-credentials");
     }
 
@@ -213,7 +242,7 @@ public sealed class UserComponentTests
 
         presenter.ViewModel.Should().NotBeNull();
         presenter.ViewModel!.Succeeded.Should().BeTrue();
-        presenter.ViewModel.Handle.Should().Be("@grace");
+        presenter.ViewModel.Handle.Should().Be("grace");
         sessions.FindByToken(presenter.ViewModel.SessionToken!).Should().NotBeNull();
     }
 
@@ -276,6 +305,15 @@ public sealed class UserComponentTests
     }
 
     [Fact]
+    public void Email_codes_allow_pasted_trailing_punctuation()
+    {
+        var codes = new InMemoryVerificationCodeGateway();
+        var code = codes.CreateCode("ada@example.com", "registration", TimeSpan.FromMinutes(15));
+
+        codes.Verify("ada@example.com", "registration", $"{code}.").Should().BeTrue();
+    }
+
+    [Fact]
     public void Login_uses_email_address_instead_of_public_handle()
     {
         var users = new InMemoryUserGateway();
@@ -287,7 +325,7 @@ public sealed class UserComponentTests
             .Login("ada@example.com", "Correct9!");
 
         emailPresenter.ViewModel!.Succeeded.Should().BeTrue();
-        emailPresenter.ViewModel.Handle.Should().Be("@ada");
+        emailPresenter.ViewModel.Handle.Should().Be("ada");
         emailPresenter.ViewModel.SessionToken.Should().NotBeNullOrWhiteSpace();
 
         var handlePresenter = new LoginPresenter();
@@ -434,7 +472,7 @@ public sealed class UserComponentTests
 
         var searchPresenter = new SearchUserPresenter();
         new SearchUserController(new SearchUserInteractor(users, searchPresenter)).Search("gra");
-        searchPresenter.ViewModel!.Users.Should().ContainSingle(u => u.Handle == "@grace");
+        searchPresenter.ViewModel!.Users.Should().ContainSingle(u => u.Handle == "grace");
 
         var viewPresenter = new ViewUserPresenter();
         new ViewUserController(new ViewUserInteractor(users, new StubUserProfilePostGateway(createdAt), viewPresenter)).View("@ada", "@grace");
