@@ -35,6 +35,9 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
     public int CountReplies(Guid parentPostId) =>
         (int)_posts.CountDocuments(p => !p.IsDeleted && p.ParentPostId == parentPostId);
 
+    public int CountConversationReplies(Guid rootPostId) =>
+        CountConversationReplies(rootPostId, _posts.Find(p => !p.IsDeleted).ToList());
+
     public IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit) =>
         _posts.Find(p => !p.IsDeleted && p.ParentPostId == parentPostId).ToList()
             .OrderByDescending(p => p.CreatedAt)
@@ -47,12 +50,13 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
         var normalizedReaderHandle = SocialPost.NormalizeHandle(readerHandle);
         var followedHandles = _follows.Find(f => f.ReaderHandle == normalizedReaderHandle).FirstOrDefault()?.Handles ?? Array.Empty<string>();
         var blockedHandles = _blocks.Find(b => b.ReaderHandle == normalizedReaderHandle).FirstOrDefault()?.Handles ?? Array.Empty<string>();
-        var query = _posts.Find(p => !p.IsDeleted).ToList();
+        var activePosts = _posts.Find(p => !p.IsDeleted).ToList();
+        var query = activePosts.Where(p => p.ParentPostId is null);
 
         return query
             .Where(p => followedHandles.Length == 0 || followedHandles.Contains(p.AuthorHandle, StringComparer.OrdinalIgnoreCase))
             .Where(p => !blockedHandles.Contains(p.AuthorHandle, StringComparer.OrdinalIgnoreCase))
-            .OrderByDescending(p => p.CreatedAt)
+            .OrderByDescending(p => LatestConversationActivityAt(p.Id, activePosts))
             .Take(limit)
             .Select(CosmosMongoMappers.ToEntity)
             .ToArray();
@@ -72,6 +76,7 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
         var postsById = allPosts.ToDictionary(p => p.Id);
 
         return allPosts
+            .Where(p => p.ParentPostId is null)
             .Where(p => MatchesContent(p, query, postsById))
             .OrderByDescending(p => p.CreatedAt)
             .Select(CosmosMongoMappers.ToEntity)
@@ -83,6 +88,22 @@ public sealed class CosmosMongoPostGateway(CosmosMongoCollections collections) :
         post.OriginalPostId is { } originalPostId &&
         postsById.TryGetValue(originalPostId, out var originalPost) &&
         originalPost.Content.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    private static int CountConversationReplies(Guid postId, IReadOnlyList<PostDocument> posts)
+    {
+        var replies = posts.Where(p => p.ParentPostId == postId).ToArray();
+        return replies.Length + replies.Sum(reply => CountConversationReplies(reply.Id, posts));
+    }
+
+    private static DateTimeOffset LatestConversationActivityAt(Guid postId, IReadOnlyList<PostDocument> posts)
+    {
+        var post = posts.Single(p => p.Id == postId);
+        var replies = posts.Where(p => p.ParentPostId == postId).ToArray();
+        return replies
+            .Select(reply => LatestConversationActivityAt(reply.Id, posts))
+            .Append(post.CreatedAt)
+            .Max();
+    }
 
     public void Follow(string readerHandle, string followedHandle) => AddToSet(_follows, readerHandle, followedHandle);
 

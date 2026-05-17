@@ -266,6 +266,12 @@ public sealed class CosmosMongoMappingTests
                 .Select(CosmosMongoMappers.ToEntity)
                 .Count(post => !post.IsDeleted && post.ParentPostId == parentPostId);
 
+        public int CountConversationReplies(Guid rootPostId)
+        {
+            var posts = _posts.Values.Select(CosmosMongoMappers.ToEntity).Where(post => !post.IsDeleted).ToArray();
+            return CountConversationReplies(rootPostId, posts);
+        }
+
         public IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit) =>
             _posts.Values
                 .Select(CosmosMongoMappers.ToEntity)
@@ -297,6 +303,12 @@ public sealed class CosmosMongoMappingTests
 
         public void Block(string readerHandle, string blockedHandle)
         {
+        }
+
+        private static int CountConversationReplies(Guid postId, IReadOnlyList<SocialPost> posts)
+        {
+            var replies = posts.Where(post => post.ParentPostId == postId).ToArray();
+            return replies.Length + replies.Sum(reply => CountConversationReplies(reply.Id, posts));
         }
     }
 }

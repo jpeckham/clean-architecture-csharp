@@ -355,12 +355,14 @@ public sealed class PostComponentTests
         var search = new InMemoryPostSearchGateway(posts);
         var original = posts.Save(SocialPost.Create("@ada", "test2 original"));
         var repost = posts.Save(SocialPost.Repost(original.Id, "@grace", "unrelated note"));
+        var reply = posts.Save(SocialPost.ReplyTo(original.Id, "@katherine", "@ada test2 reply"));
         posts.Save(SocialPost.Create("@linus", "other content"));
 
         var results = search.Search("test2");
 
         results.Should().Contain(p => p.Id == original.Id);
         results.Should().Contain(p => p.Id == repost.Id);
+        results.Should().NotContain(p => p.Id == reply.Id);
         results.Should().NotContain(p => p.AuthorHandle == "linus");
     }
 
@@ -425,7 +427,7 @@ public sealed class PostComponentTests
     }
 
     [Fact]
-    public void Post_summary_includes_most_recent_replies_for_each_post_without_changing_feed_order()
+    public void Feed_returns_top_level_posts_sorted_by_latest_conversation_activity()
     {
         var posts = new InMemoryPostGateway();
         var root = posts.Save(SocialPost.Rehydrate(
@@ -457,6 +459,16 @@ public sealed class PostComponentTests
             false,
             Array.Empty<string>(),
             mentions: new[] { "ada" }));
+        posts.Save(SocialPost.Rehydrate(
+            Guid.NewGuid(),
+            "@margaret",
+            "@linus nested reply",
+            newerReply.Id,
+            null,
+            DateTimeOffset.Parse("2026-05-16T12:03:30Z"),
+            false,
+            Array.Empty<string>(),
+            mentions: new[] { "linus" }));
         var unrelated = posts.Save(SocialPost.Rehydrate(
             Guid.NewGuid(),
             "@katherine",
@@ -466,14 +478,24 @@ public sealed class PostComponentTests
             DateTimeOffset.Parse("2026-05-16T12:03:00Z"),
             false,
             Array.Empty<string>()));
+        var repost = posts.Save(SocialPost.Rehydrate(
+            Guid.NewGuid(),
+            "@hopper",
+            "quote",
+            null,
+            root.Id,
+            DateTimeOffset.Parse("2026-05-16T12:04:00Z"),
+            false,
+            Array.Empty<string>()));
         var output = new CapturingScrollPostsOutput();
 
         new ScrollPostsInteractor(posts, output).Handle(new("@reader", 10));
 
-        output.Response!.Posts.Select(p => p.Id).Should().Equal(unrelated.Id, newerReply.Id, olderReply.Id, root.Id);
+        output.Response!.Posts.Select(p => p.Id).Should().Equal(repost.Id, root.Id, unrelated.Id);
         var rootSummary = output.Response.Posts.Single(p => p.Id == root.Id);
-        rootSummary.ReplyCount.Should().Be(2);
+        rootSummary.ReplyCount.Should().Be(3);
         rootSummary.RecentReplies.Select(p => p.Id).Should().Equal(newerReply.Id, olderReply.Id);
+        output.Response.Posts.Single(p => p.Id == repost.Id).ReplyCount.Should().Be(0);
     }
 
     [Fact]
@@ -519,7 +541,7 @@ public sealed class PostComponentTests
     }
 
     [Fact]
-    public void Display_post_limits_thread_tree_to_depth_three_from_selected_post()
+    public void Display_post_limits_conversation_tree_to_depth_three_from_selected_post()
     {
         var posts = new InMemoryPostGateway();
         var root = posts.Save(SocialPost.Rehydrate(
@@ -773,6 +795,9 @@ public sealed class PostComponentTests
 
         public int CountReplies(Guid parentPostId) =>
             inner.CountReplies(parentPostId);
+
+        public int CountConversationReplies(Guid rootPostId) =>
+            inner.CountConversationReplies(rootPostId);
 
         public IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit) =>
             inner.RecentReplies(parentPostId, limit);

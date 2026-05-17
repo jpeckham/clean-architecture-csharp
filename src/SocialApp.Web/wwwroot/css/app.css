@@ -404,10 +404,6 @@ form {
     font-size: 20px;
 }
 
-.reply-button {
-    font-size: 19px;
-}
-
 .heart-button:hover:not(:disabled),
 .heart-button.liked {
     color: var(--danger);
@@ -421,6 +417,27 @@ form {
 .reply-button:hover:not(:disabled),
 .reply-button.replying {
     color: var(--blue);
+}
+
+.chat-bubble-icon {
+    border: 2px solid currentColor;
+    border-radius: 8px;
+    display: inline-block;
+    height: 17px;
+    position: relative;
+    width: 19px;
+}
+
+.chat-bubble-icon::after {
+    border-bottom: 2px solid currentColor;
+    border-left: 2px solid currentColor;
+    bottom: -5px;
+    content: "";
+    height: 7px;
+    left: 4px;
+    position: absolute;
+    transform: skewX(-28deg);
+    width: 7px;
 }
 
 .heart-button:focus-visible,
@@ -487,7 +504,7 @@ form {
     padding: 0 11px;
 }
 
-.thread-preview {
+.conversation-preview {
     border-left: 2px solid var(--border-strong);
     display: grid;
     gap: 10px;
@@ -495,23 +512,23 @@ form {
     padding-left: 12px;
 }
 
-.thread-reply {
+.conversation-reply {
     background: rgb(15 22 32 / 72%);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 11px 12px;
 }
 
-.clickable-thread-reply {
+.clickable-conversation-reply {
     cursor: pointer;
 }
 
-.clickable-thread-reply:hover,
-.clickable-thread-reply:focus-visible {
+.clickable-conversation-reply:hover,
+.clickable-conversation-reply:focus-visible {
     border-color: var(--border-strong);
 }
 
-.thread-reply .thread-preview {
+.conversation-reply .conversation-preview {
     margin-top: 10px;
 }
 

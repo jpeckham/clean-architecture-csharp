@@ -2,16 +2,16 @@
 
 @if ((Replies?.Count ?? 0) > 0)
 {
-    <section class="thread-preview" @onclick:stopPropagation="true">
+    <section class="conversation-preview" @onclick:stopPropagation="true">
         @foreach (var reply in Replies!)
         {
-            <article class="thread-reply clickable-thread-reply" role="link" tabindex="0" @onclick="() => OpenReplyAsync(reply)" @onkeydown="args => HandleReplyKeyDownAsync(args, reply)">
+            <article class="conversation-reply clickable-conversation-reply" role="link" tabindex="0" @onclick="() => OpenReplyAsync(reply)" @onkeydown="args => HandleReplyKeyDownAsync(args, reply)">
                 <div class="post-author-line">
                     <a class="author-link" href="@UserUrl(reply.AuthorHandle)" @onclick:stopPropagation="true">@reply.AuthorHandle</a>
                     <time class="post-time" datetime="@reply.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(reply.CreatedAt)</time>
                 </div>
                 <PostContent ContentSegments="@reply.ContentSegments" />
-                <ThreadReplies Replies="reply.RecentReplies" OpenRequested="OpenRequested" />
+                <ConversationReplies Replies="reply.RecentReplies" OpenRequested="OpenRequested" />
             </article>
         }
     </section>

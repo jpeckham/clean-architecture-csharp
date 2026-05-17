@@ -72,15 +72,18 @@ public sealed class WebConfigurationTests
         var root = FindRepositoryRoot();
         var feed = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "Feed.razor"));
         feed.Should().Contain("<PostCard");
+        feed.Should().Contain("ShowConversationPreview=\"false\"");
     }
 
     [Fact]
-    public void Post_card_renders_reply_action_and_thread_preview()
+    public void Post_card_renders_join_conversation_action_and_conversation_preview()
     {
         var root = FindRepositoryRoot();
         var postCard = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "PostCard.razor"));
 
-        postCard.Should().Contain("Reply");
+        postCard.Should().Contain("Join the conversation");
+        postCard.Should().Contain("chat-bubble-icon");
+        postCard.Should().Contain("ShowConversationPreview");
         postCard.Should().Contain("reply-prefix");
         postCard.Should().Contain("RecentReplies");
     }
@@ -98,15 +101,15 @@ public sealed class WebConfigurationTests
     }
 
     [Fact]
-    public void Thread_replies_component_renders_nested_replies()
+    public void Conversation_replies_component_renders_nested_replies()
     {
-        typeof(Components.ThreadReplies).Should().NotBeNull();
+        typeof(Components.ConversationReplies).Should().NotBeNull();
 
         var root = FindRepositoryRoot();
-        var threadReplies = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "ThreadReplies.razor"));
+        var conversationReplies = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "ConversationReplies.razor"));
 
-        threadReplies.Should().Contain("<ThreadReplies");
-        threadReplies.Should().Contain("Replies=\"reply.RecentReplies\"");
+        conversationReplies.Should().Contain("<ConversationReplies");
+        conversationReplies.Should().Contain("Replies=\"reply.RecentReplies\"");
     }
 
     [Fact]

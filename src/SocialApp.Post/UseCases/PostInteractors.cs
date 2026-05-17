@@ -98,7 +98,7 @@ public sealed class DisplayPostInteractor(IPostGateway posts, IDisplayPostOutput
         var post = posts.FindById(request.PostId);
         output.Present(post is null || post.IsDeleted
             ? new(false, PostMessageKeys.PostNotFound, null)
-            : new(true, PostMessageKeys.PostFound, PostSummaryProjection.ToFocusedThreadSummary(post, posts, request.ReaderHandle)));
+            : new(true, PostMessageKeys.PostFound, PostSummaryProjection.ToFocusedConversationSummary(post, posts, request.ReaderHandle)));
     }
 }
 

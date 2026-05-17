@@ -26,6 +26,7 @@ public interface IPostGateway
     SocialPost? FindActiveRepost(Guid originalPostId, string authorHandle);
     int CountActiveReposts(Guid originalPostId);
     int CountReplies(Guid parentPostId);
+    int CountConversationReplies(Guid rootPostId);
     IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit);
     IReadOnlyList<SocialPost> ScrollFor(string readerHandle, int limit);
     IReadOnlyList<SocialPost> RecentByAuthor(string authorHandle, int limit);
@@ -97,6 +98,9 @@ public sealed class InMemoryPostGateway : IPostGateway
     public int CountReplies(Guid parentPostId) =>
         _posts.Count(p => !p.IsDeleted && p.ParentPostId == parentPostId);
 
+    public int CountConversationReplies(Guid rootPostId) =>
+        CountConversationReplies(rootPostId, _posts.Where(p => !p.IsDeleted).ToArray());
+
     public IReadOnlyList<SocialPost> RecentReplies(Guid parentPostId, int limit) =>
         _posts.Where(p => !p.IsDeleted && p.ParentPostId == parentPostId)
             .OrderByDescending(p => p.CreatedAt)
@@ -108,10 +112,12 @@ public sealed class InMemoryPostGateway : IPostGateway
         var follows = _follows.GetValueOrDefault(SocialPost.NormalizeHandle(readerHandle)) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var blocks = _blocks.GetValueOrDefault(SocialPost.NormalizeHandle(readerHandle)) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        return _posts.Where(p => !p.IsDeleted)
+        var activePosts = _posts.Where(p => !p.IsDeleted).ToArray();
+
+        return activePosts.Where(p => p.ParentPostId is null)
             .Where(p => follows.Count == 0 || follows.Contains(p.AuthorHandle))
             .Where(p => !blocks.Contains(p.AuthorHandle))
-            .OrderByDescending(p => p.CreatedAt)
+            .OrderByDescending(p => LatestConversationActivityAt(p.Id, activePosts))
             .Take(limit)
             .ToArray();
     }
@@ -139,6 +145,22 @@ public sealed class InMemoryPostGateway : IPostGateway
 
         return values;
     }
+
+    private static int CountConversationReplies(Guid postId, IReadOnlyList<SocialPost> posts)
+    {
+        var replies = posts.Where(p => p.ParentPostId == postId).ToArray();
+        return replies.Length + replies.Sum(reply => CountConversationReplies(reply.Id, posts));
+    }
+
+    private static DateTimeOffset LatestConversationActivityAt(Guid postId, IReadOnlyList<SocialPost> posts)
+    {
+        var post = posts.Single(p => p.Id == postId);
+        var replies = posts.Where(p => p.ParentPostId == postId).ToArray();
+        return replies
+            .Select(reply => LatestConversationActivityAt(reply.Id, posts))
+            .Append(post.CreatedAt)
+            .Max();
+    }
 }
 
 public sealed class InMemoryPostSearchGateway(InMemoryPostGateway posts) : IPostSearchGateway
@@ -149,7 +171,7 @@ public sealed class InMemoryPostSearchGateway(InMemoryPostGateway posts) : IPost
         var postsById = allPosts.ToDictionary(p => p.Id);
 
         return allPosts
-            .Where(p => !p.IsDeleted)
+            .Where(p => !p.IsDeleted && p.ParentPostId is null)
             .Where(p => MatchesContent(p, query, postsById))
             .ToArray();
     }

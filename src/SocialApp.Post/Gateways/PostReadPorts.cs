@@ -51,7 +51,7 @@ internal static class PostSummaryProjection
             normalizedReaderHandle is not null && post.LikedBy.Contains(normalizedReaderHandle),
             posts?.CountActiveReposts(repostTargetId) ?? 0,
             normalizedReaderHandle is not null && posts?.FindActiveRepost(repostTargetId, normalizedReaderHandle) is not null,
-            posts?.CountReplies(post.Id) ?? 0,
+            posts?.CountConversationReplies(post.Id) ?? 0,
             recentReplies,
             replyTarget is null ? null : ToQuotedSummary(replyTarget),
             originalPost is null ? null : ToQuotedSummary(originalPost),
@@ -60,7 +60,7 @@ internal static class PostSummaryProjection
             post.Hashtags.ToArray());
     }
 
-    public static PostSummaryResponse ToFocusedThreadSummary(SocialPost post, IPostGateway posts, string readerHandle) =>
+    public static PostSummaryResponse ToFocusedConversationSummary(SocialPost post, IPostGateway posts, string readerHandle) =>
         ToSummary(post, posts, readerHandle, replyDepth: 3, replyLimit: DetailReplyLimit);
 
     private static QuotedPostSummaryResponse ToQuotedSummary(SocialPost post) =>

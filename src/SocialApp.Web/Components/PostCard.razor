@@ -68,11 +68,11 @@
         <button
             type="button"
             class="reply-button @(ActiveReplyPostId == Item.Id ? "replying" : null)"
-            aria-label="Reply to post"
-            title="Reply to post"
+            aria-label="Join the conversation"
+            title="Join the conversation"
             @onclick="ToggleReplyAsync"
             disabled="@IsBusy">
-            <span aria-hidden="true">@("\u21a9")</span>
+            <span class="chat-bubble-icon" aria-hidden="true"></span>
         </button>
         <span class="reply-count">@Item.ReplyCount</span>
     </div>
@@ -89,7 +89,10 @@
             </div>
         </div>
     }
-    <ThreadReplies Replies="Item.RecentReplies" OpenRequested="OpenRequested" />
+    @if (ShowConversationPreview)
+    {
+        <ConversationReplies Replies="Item.RecentReplies" OpenRequested="OpenRequested" />
+    }
     @if (ActiveRepostPostId == Item.Id && !Item.RepostedByCurrentReader)
     {
         <div class="repost-composer" @onclick:stopPropagation="true">
@@ -114,6 +117,9 @@
 
     [Parameter]
     public bool IsBusy { get; set; }
+
+    [Parameter]
+    public bool ShowConversationPreview { get; set; } = true;
 
     [Parameter]
     public Guid? ActiveRepostPostId { get; set; }
