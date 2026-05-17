@@ -39,6 +39,8 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        await Session.RestoreAsync();
+
         if (!Session.IsLoggedIn)
         {
             profile = null;
@@ -64,10 +66,10 @@
         Navigation.NavigateTo($"/users/{Uri.EscapeDataString(Session.Handle!)}");
     }
 
-    private void LogOut()
+    private async Task LogOut()
     {
         isMenuOpen = false;
-        Session.SignOut();
+        await Session.SignOutAsync();
         Navigation.NavigateTo("/");
     }
 

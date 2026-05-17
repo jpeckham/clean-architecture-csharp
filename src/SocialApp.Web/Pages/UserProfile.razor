@@ -125,6 +125,8 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        await Session.RestoreAsync();
+
         if (!Session.IsLoggedIn)
         {
             Navigation.NavigateTo("/");

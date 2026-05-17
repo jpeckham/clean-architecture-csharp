@@ -74,6 +74,8 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        await Session.RestoreAsync();
+
         if (!Session.IsLoggedIn)
         {
             Navigation.NavigateTo($"/?returnUrl={Uri.EscapeDataString(Navigation.ToBaseRelativePath(Navigation.Uri))}");

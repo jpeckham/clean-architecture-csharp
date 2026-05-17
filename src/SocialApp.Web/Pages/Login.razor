@@ -76,7 +76,7 @@
 
             if (result is { Succeeded: true, Handle: not null, SessionToken: not null })
             {
-                Session.SignIn(result.Handle, result.SessionToken);
+                await Session.SignInAsync(result.Handle, result.SessionToken);
                 NavigateAfterSignIn();
                 return;
             }
@@ -103,7 +103,7 @@
             var result = await Api.VerifyDeviceOtpAsync(new(pendingHandle ?? string.Empty, deviceId, otp.Code, otp.RememberDevice));
             if (result is { Succeeded: true, Handle: not null, SessionToken: not null })
             {
-                Session.SignIn(result.Handle, result.SessionToken);
+                await Session.SignInAsync(result.Handle, result.SessionToken);
                 NavigateAfterSignIn();
                 return;
             }

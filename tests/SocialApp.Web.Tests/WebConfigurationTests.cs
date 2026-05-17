@@ -200,8 +200,30 @@ public sealed class WebConfigurationTests
         accountMenu.Should().Contain("Profile");
         accountMenu.Should().Contain("Log Out");
         accountMenu.Should().Contain("GetUserAsync");
-        accountMenu.Should().Contain("Session.SignOut()");
+        accountMenu.Should().Contain("Session.SignOutAsync()");
         accountMenu.Should().Contain("NavigateTo(\"/\")");
+    }
+
+    [Fact]
+    public void Browser_session_is_persisted_and_restored_for_authenticated_pages()
+    {
+        var root = FindRepositoryRoot();
+        var appSession = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Services", "AppSession.cs"));
+        var login = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "Login.razor"));
+        var feed = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "Feed.razor"));
+        var postDetails = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "PostDetails.razor"));
+        var userProfile = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "UserProfile.razor"));
+        var accountMenu = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "UserAccountMenu.razor"));
+
+        appSession.Should().Contain("localStorage");
+        appSession.Should().Contain("RestoreAsync");
+        appSession.Should().Contain("SignInAsync");
+        appSession.Should().Contain("SignOutAsync");
+        login.Should().Contain("await Session.SignInAsync");
+        feed.Should().Contain("await Session.RestoreAsync()");
+        postDetails.Should().Contain("await Session.RestoreAsync()");
+        userProfile.Should().Contain("await Session.RestoreAsync()");
+        accountMenu.Should().Contain("await Session.SignOutAsync()");
     }
 
     private static string ReadWebStylesheet()
