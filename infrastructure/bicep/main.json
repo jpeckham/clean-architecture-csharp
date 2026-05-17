@@ -1,0 +1,721 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.8.12551",
+      "templateHash": "10522871146119720432"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "eastus",
+      "metadata": {
+        "description": "Azure region for resources that require regional placement."
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "minLength": 2,
+      "metadata": {
+        "description": "Deployment environment name."
+      }
+    },
+    "appName": {
+      "type": "string",
+      "defaultValue": "cleansocial",
+      "minLength": 2,
+      "metadata": {
+        "description": "Short lowercase app name used in Azure resource names."
+      }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "defaultValue": "kv-jdpeckham",
+      "metadata": {
+        "description": "Existing Azure Key Vault name."
+      }
+    },
+    "dnsZoneName": {
+      "type": "string",
+      "defaultValue": "azure.jdpeckham.com",
+      "metadata": {
+        "description": "Existing Azure DNS zone name."
+      }
+    },
+    "webHostName": {
+      "type": "string",
+      "defaultValue": "cleansocial.azure.jdpeckham.com",
+      "metadata": {
+        "description": "Custom host name for the Static Web App."
+      }
+    },
+    "githubRepositoryOwner": {
+      "type": "string",
+      "defaultValue": "jpeckham",
+      "metadata": {
+        "description": "GitHub repository owner used for OIDC federation."
+      }
+    },
+    "githubRepositoryName": {
+      "type": "string",
+      "defaultValue": "clean-architecture-csharp",
+      "metadata": {
+        "description": "GitHub repository name used for OIDC federation."
+      }
+    },
+    "githubBranch": {
+      "type": "string",
+      "defaultValue": "main",
+      "metadata": {
+        "description": "GitHub branch allowed to deploy production."
+      }
+    },
+    "githubEnvironmentName": {
+      "type": "string",
+      "defaultValue": "production",
+      "metadata": {
+        "description": "GitHub environment allowed to deploy production."
+      }
+    },
+    "apiContainerImage": {
+      "type": "string",
+      "defaultValue": "mcr.microsoft.com/dotnet/samples:aspnetapp",
+      "metadata": {
+        "description": "Initial API container image. The deployment workflow updates this to the current ACR image."
+      }
+    },
+    "apiContainerPort": {
+      "type": "int",
+      "defaultValue": 8080,
+      "metadata": {
+        "description": "Container port exposed by SocialApp.Api."
+      }
+    },
+    "cosmosDatabaseName": {
+      "type": "string",
+      "defaultValue": "socialapp",
+      "metadata": {
+        "description": "Cosmos DB Mongo database name."
+      }
+    },
+    "cosmosMongoServerVersion": {
+      "type": "string",
+      "defaultValue": "7.0",
+      "metadata": {
+        "description": "Cosmos DB Mongo API server version."
+      }
+    },
+    "staticWebAppSku": {
+      "type": "string",
+      "defaultValue": "Free",
+      "allowedValues": [
+        "Free",
+        "Standard"
+      ],
+      "metadata": {
+        "description": "Static Web Apps SKU. Free keeps MVP hosting cost minimized."
+      }
+    }
+  },
+  "variables": {
+    "suffix": "[format('{0}-{1}', parameters('appName'), parameters('environmentName'))]",
+    "compactSuffix": "[take(toLower(replace(variables('suffix'), '-', '')), 16)]",
+    "acrName": "acrcleansocialprod",
+    "tags": {
+      "application": "[parameters('appName')]",
+      "environment": "[parameters('environmentName')]",
+      "managedBy": "bicep"
+    },
+    "githubRepo": "[format('{0}/{1}', parameters('githubRepositoryOwner'), parameters('githubRepositoryName'))]",
+    "dnsRelativeRecordName": "[replace(parameters('webHostName'), format('.{0}', parameters('dnsZoneName')), '')]",
+    "mongoCollections": [
+      "users",
+      "sessions",
+      "posts",
+      "postFollows",
+      "postBlocks",
+      "pendingRegistrations",
+      "verificationCodes",
+      "rememberedDevices",
+      "passwordResetTokens"
+    ],
+    "keyVaultSecretsUserRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
+    "storageBlobDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+    "acrPullRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+    "acrPushRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')]",
+    "contributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[format('log-{0}', variables('suffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('acrName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "adminUserEnabled": false
+      }
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts",
+      "apiVersion": "2024-05-15",
+      "name": "[format('cosmos-{0}', variables('suffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "kind": "MongoDB",
+      "properties": {
+        "databaseAccountOfferType": "Standard",
+        "enableFreeTier": true,
+        "apiProperties": {
+          "serverVersion": "[parameters('cosmosMongoServerVersion')]"
+        },
+        "capabilities": [
+          {
+            "name": "EnableMongo"
+          }
+        ],
+        "consistencyPolicy": {
+          "defaultConsistencyLevel": "Session"
+        },
+        "locations": [
+          {
+            "locationName": "[parameters('location')]",
+            "failoverPriority": 0,
+            "isZoneRedundant": false
+          }
+        ],
+        "backupPolicy": {
+          "type": "Periodic",
+          "periodicModeProperties": {
+            "backupIntervalInMinutes": 240,
+            "backupRetentionIntervalInHours": 8
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/mongodbDatabases",
+      "apiVersion": "2024-05-15",
+      "name": "[format('{0}/{1}', format('cosmos-{0}', variables('suffix')), parameters('cosmosDatabaseName'))]",
+      "properties": {
+        "resource": {
+          "id": "[parameters('cosmosDatabaseName')]"
+        },
+        "options": {
+          "throughput": 400
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('cosmos-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "cosmosCollections",
+        "count": "[length(variables('mongoCollections'))]"
+      },
+      "type": "Microsoft.DocumentDB/databaseAccounts/mongodbDatabases/collections",
+      "apiVersion": "2024-05-15",
+      "name": "[format('{0}/{1}/{2}', format('cosmos-{0}', variables('suffix')), parameters('cosmosDatabaseName'), variables('mongoCollections')[copyIndex()])]",
+      "properties": {
+        "resource": {
+          "id": "[variables('mongoCollections')[copyIndex()]]",
+          "shardKey": {
+            "_id": "Hash"
+          },
+          "indexes": [
+            {
+              "key": {
+                "keys": [
+                  "_id"
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/mongodbDatabases', format('cosmos-{0}', variables('suffix')), parameters('cosmosDatabaseName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-05-01",
+      "name": "[format('st{0}media', variables('compactSuffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "allowBlobPublicAccess": false,
+        "allowSharedKeyAccess": true,
+        "minimumTlsVersion": "TLS1_2",
+        "supportsHttpsTrafficOnly": true,
+        "accessTier": "Hot"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', format('st{0}media', variables('compactSuffix')), 'default')]",
+      "properties": {
+        "deleteRetentionPolicy": {
+          "enabled": true,
+          "days": 7
+        },
+        "containerDeleteRetentionPolicy": {
+          "enabled": true,
+          "days": 7
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', format('st{0}media', variables('compactSuffix')), 'default', 'profile-images')]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', format('st{0}media', variables('compactSuffix')), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', format('st{0}media', variables('compactSuffix')), 'default', 'post-images')]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', format('st{0}media', variables('compactSuffix')), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', format('st{0}media', variables('compactSuffix')), 'default', 'post-videos')]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', format('st{0}media', variables('compactSuffix')), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('id-github-{0}', variables('suffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]"
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('id-api-{0}', variables('suffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]"
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}/{1}', format('id-github-{0}', variables('suffix')), format('github-{0}', parameters('githubBranch')))]",
+      "properties": {
+        "audiences": [
+          "api://AzureADTokenExchange"
+        ],
+        "issuer": "https://token.actions.githubusercontent.com",
+        "subject": "[format('repo:{0}:ref:refs/heads/{1}', variables('githubRepo'), parameters('githubBranch'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}/{1}', format('id-github-{0}', variables('suffix')), format('github-{0}', parameters('githubEnvironmentName')))]",
+      "properties": {
+        "audiences": [
+          "api://AzureADTokenExchange"
+        ],
+        "issuer": "https://token.actions.githubusercontent.com",
+        "subject": "[format('repo:{0}:environment:{1}', variables('githubRepo'), parameters('githubEnvironmentName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials', format('id-github-{0}', variables('suffix')), format('github-{0}', parameters('githubBranch')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[format('cae-{0}', variables('suffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('log-{0}', variables('suffix'))), '2023-09-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('log-{0}', variables('suffix'))), '2023-09-01').primarySharedKey]"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('log-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/staticSites",
+      "apiVersion": "2023-12-01",
+      "name": "[format('stapp-{0}', variables('suffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "[parameters('staticWebAppSku')]",
+        "tier": "[parameters('staticWebAppSku')]"
+      },
+      "properties": {
+        "allowConfigFileUpdates": true,
+        "stagingEnvironmentPolicy": "Disabled"
+      }
+    },
+    {
+      "type": "Microsoft.Network/dnsZones/CNAME",
+      "apiVersion": "2018-05-01",
+      "name": "[format('{0}/{1}', parameters('dnsZoneName'), variables('dnsRelativeRecordName'))]",
+      "properties": {
+        "TTL": 300,
+        "CNAMERecord": {
+          "cname": "[reference(resourceId('Microsoft.Web/staticSites', format('stapp-{0}', variables('suffix'))), '2023-12-01').defaultHostname]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/staticSites', format('stapp-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), format('cleansocial-{0}-cosmos-mongo-connection-string', parameters('environmentName')))]",
+      "properties": {
+        "value": "[listConnectionStrings(resourceId('Microsoft.DocumentDB/databaseAccounts', format('cosmos-{0}', variables('suffix'))), '2024-05-15').connectionStrings[0].connectionString]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('cosmos-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), format('cleansocial-{0}-password-reset-base-url', parameters('environmentName')))]",
+      "properties": {
+        "value": "[format('https://{0}/reset-password', parameters('webHostName'))]"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('keyVaultSecretsUserRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('keyVaultSecretsUserRoleId')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/accessPolicies",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), 'add')]",
+      "properties": {
+        "accessPolicies": [
+          {
+            "tenantId": "[subscription().tenantId]",
+            "objectId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), '2023-01-31').principalId]",
+            "permissions": {
+              "secrets": [
+                "get",
+                "list"
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix')))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('storageBlobDataContributorRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('storageBlobDataContributorRoleId')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('acrPullRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('acrPullRoleId')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix'))), variables('acrPushRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('acrPushRoleId')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix'))), variables('contributorRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('contributorRoleId')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[format('ca-api-{0}', variables('suffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))))]": {}
+        }
+      },
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', format('cae-{0}', variables('suffix')))]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": true,
+            "allowInsecure": false,
+            "targetPort": "[parameters('apiContainerPort')]",
+            "transport": "auto",
+            "traffic": [
+              {
+                "latestRevision": true,
+                "weight": 100
+              }
+            ]
+          },
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
+            }
+          ],
+          "secrets": [
+            {
+              "name": "cosmos-mongo-connection-string",
+              "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-cosmos-mongo-connection-string', parameters('environmentName'))), '2023-07-01').secretUri]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
+            },
+            {
+              "name": "password-reset-base-url",
+              "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-password-reset-base-url', parameters('environmentName'))), '2023-07-01').secretUri]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
+            }
+          ]
+        },
+        "template": {
+          "scale": {
+            "minReplicas": 0,
+            "maxReplicas": 3
+          },
+          "containers": [
+            {
+              "name": "api",
+              "image": "[parameters('apiContainerImage')]",
+              "resources": {
+                "cpu": "[json('0.25')]",
+                "memory": "0.5Gi"
+              },
+              "env": [
+                {
+                  "name": "ASPNETCORE_ENVIRONMENT",
+                  "value": "Production"
+                },
+                {
+                  "name": "ASPNETCORE_URLS",
+                  "value": "[format('http://+:{0}', parameters('apiContainerPort'))]"
+                },
+                {
+                  "name": "CosmosMongo__ConnectionString",
+                  "secretRef": "cosmos-mongo-connection-string"
+                },
+                {
+                  "name": "CosmosMongo__DatabaseName",
+                  "value": "[parameters('cosmosDatabaseName')]"
+                },
+                {
+                  "name": "Web__PasswordResetBaseUrl",
+                  "secretRef": "password-reset-base-url"
+                },
+                {
+                  "name": "Media__Provider",
+                  "value": "AzureBlob"
+                },
+                {
+                  "name": "AzureBlobMedia__AccountUri",
+                  "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix'))), '2023-05-01').primaryEndpoints.blob]"
+                },
+                {
+                  "name": "AzureBlobMedia__ProfileImagesContainer",
+                  "value": "profile-images"
+                },
+                {
+                  "name": "AzureBlobMedia__PostMediaContainer",
+                  "value": "post-images"
+                }
+              ],
+              "probes": [
+                {
+                  "type": "Liveness",
+                  "httpGet": {
+                    "path": "/health",
+                    "port": "[parameters('apiContainerPort')]"
+                  },
+                  "initialDelaySeconds": 20,
+                  "periodSeconds": 30
+                },
+                {
+                  "type": "Readiness",
+                  "httpGet": {
+                    "path": "/health",
+                    "port": "[parameters('apiContainerPort')]"
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 15
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+        "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('acrPullRoleId')))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix'))), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('storageBlobDataContributorRoleId')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]",
+        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('keyVaultSecretsUserRoleId')))]",
+        "[resourceId('Microsoft.KeyVault/vaults/accessPolicies', parameters('keyVaultName'), 'add')]",
+        "[resourceId('Microsoft.App/managedEnvironments', format('cae-{0}', variables('suffix')))]",
+        "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-cosmos-mongo-connection-string', parameters('environmentName')))]",
+        "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-password-reset-base-url', parameters('environmentName')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', format('st{0}media', variables('compactSuffix')), 'default', 'post-images')]",
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', format('st{0}media', variables('compactSuffix')), 'default', 'profile-images')]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "apiUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('ca-api-{0}', variables('suffix'))), '2024-03-01').configuration.ingress.fqdn)]"
+    },
+    "apiContainerAppName": {
+      "type": "string",
+      "value": "[format('ca-api-{0}', variables('suffix'))]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]"
+    },
+    "acrName": {
+      "type": "string",
+      "value": "[variables('acrName')]"
+    },
+    "staticWebAppName": {
+      "type": "string",
+      "value": "[format('stapp-{0}', variables('suffix'))]"
+    },
+    "staticWebAppDefaultHostName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/staticSites', format('stapp-{0}', variables('suffix'))), '2023-12-01').defaultHostname]"
+    },
+    "webHostName": {
+      "type": "string",
+      "value": "[parameters('webHostName')]"
+    },
+    "githubDeployClientId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix'))), '2023-01-31').clientId]"
+    },
+    "githubDeployPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix'))), '2023-01-31').principalId]"
+    },
+    "mediaStorageAccountName": {
+      "type": "string",
+      "value": "[format('st{0}media', variables('compactSuffix'))]"
+    },
+    "cosmosAccountName": {
+      "type": "string",
+      "value": "[format('cosmos-{0}', variables('suffix'))]"
+    }
+  }
+}

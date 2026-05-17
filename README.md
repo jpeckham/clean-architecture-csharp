@@ -148,18 +148,38 @@ The hosted slice uses out-of-band email flows:
 
 ## Azure Infrastructure
 
-Terraform lives in `infra/terraform` and provisions:
+Azure production infrastructure is defined in `infrastructure/bicep` and deployed by `.github/workflows/production-deploy.yml`.
 
-- Azure Static Web Apps for `SocialApp.Web`
-- Azure Container Apps for `SocialApp.Api`
-- Azure Cosmos DB for MongoDB API
-- Azure Communication Services Email
-- Log Analytics for container logs
+The first infrastructure deployment must be run from an authenticated local Azure CLI session because GitHub cannot create the Azure identity it needs before it can log in:
 
 ```powershell
-terraform -chdir=infra/terraform init
-terraform -chdir=infra/terraform plan -var "api_container_image=<registry>/socialapp-api:<tag>"
+az login --tenant 7f4e14a4-417c-496f-82d9-9fb7940c3d17
+az account set --subscription 6d88cea2-aec5-4d58-88c4-4830a867b3cd
+
+./infrastructure/scripts/deploy-infrastructure.ps1
+./infrastructure/scripts/get-github-secrets.ps1
 ```
+
+Store the printed values as GitHub `production` environment secrets:
+
+```text
+AZURE_CLIENT_ID=<client id for id-github-cleansocial-prod>
+AZURE_TENANT_ID=7f4e14a4-417c-496f-82d9-9fb7940c3d17
+AZURE_SUBSCRIPTION_ID=6d88cea2-aec5-4d58-88c4-4830a867b3cd
+```
+
+`AZURE_CLIENT_ID` is not a password. It identifies the user-assigned managed identity `id-github-cleansocial-prod`. The deployment is secured by GitHub OpenID Connect federation: Azure accepts a short-lived token from GitHub only when its claims match the federated credentials created by Bicep:
+
+```text
+issuer:  https://token.actions.githubusercontent.com
+subject: repo:jpeckham/clean-architecture-csharp:ref:refs/heads/main
+subject: repo:jpeckham/clean-architecture-csharp:environment:production
+audience: api://AzureADTokenExchange
+```
+
+Another repository cannot use the same client ID to deploy because its GitHub OIDC token has a different `sub` claim. Any workflow in this repository that targets the `production` environment can request this identity, so the GitHub `production` environment should use required reviewers or deployment branch restrictions for additional release control.
+
+The production workflow re-applies Bicep, builds and pushes the API container to Azure Container Registry, updates Azure Container Apps, builds the Blazor WebAssembly frontend, and deploys it to Azure Static Web Apps.
 
 Build the API container from the repository root with:
 

@@ -102,19 +102,6 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   }
   properties: {
     adminUserEnabled: false
-    policies: {
-      quarantinePolicy: {
-        status: 'disabled'
-      }
-      retentionPolicy: {
-        days: 7
-        status: 'enabled'
-      }
-      trustPolicy: {
-        status: 'disabled'
-        type: 'Notary'
-      }
-    }
   }
 }
 
@@ -273,6 +260,9 @@ resource githubBranchFederatedCredential 'Microsoft.ManagedIdentity/userAssigned
 resource githubEnvironmentFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
   parent: githubDeployIdentity
   name: 'github-${githubEnvironmentName}'
+  dependsOn: [
+    githubBranchFederatedCredential
+  ]
   properties: {
     audiences: [
       'api://AzureADTokenExchange'
@@ -351,6 +341,25 @@ resource apiKeyVaultAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' 
     roleDefinitionId: keyVaultSecretsUserRoleId
     principalId: apiIdentity.properties.principalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+resource apiKeyVaultAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2023-07-01' = {
+  parent: keyVault
+  name: 'add'
+  properties: {
+    accessPolicies: [
+      {
+        tenantId: subscription().tenantId
+        objectId: apiIdentity.properties.principalId
+        permissions: {
+          secrets: [
+            'get'
+            'list'
+          ]
+        }
+      }
+    ]
   }
 }
 
@@ -515,6 +524,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
   dependsOn: [
     apiKeyVaultAccess
+    apiKeyVaultAccessPolicy
     apiBlobAccess
     apiAcrPull
   ]

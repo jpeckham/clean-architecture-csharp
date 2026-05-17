@@ -1,6 +1,6 @@
 using '../main.bicep'
 
-param location = 'eastus'
+param location = 'centralus'
 param environmentName = 'prod'
 param appName = 'cleansocial'
 param keyVaultName = 'kv-jdpeckham'
