@@ -27,13 +27,13 @@ This binds `cleansocial.azure.jdpeckham.com` to the Static Web App and enables t
 
 ## Configure GitHub Secrets
 
-Use the Bicep output `githubDeployClientId` and the Static Web Apps deployment token:
+Use the Bicep output `githubDeployClientId`:
 
 ```powershell
 ./infrastructure/scripts/get-github-secrets.ps1
 ```
 
-Store the printed values in the GitHub `production` environment.
+Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` in the GitHub `production` environment. The production deployment workflow reads the Azure Static Web Apps deployment token after infrastructure deployment.
 
 ## Production Deployment
 

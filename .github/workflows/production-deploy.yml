@@ -32,12 +32,11 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
         run: |
           set -euo pipefail
           missing=()
 
-          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_STATIC_WEB_APPS_API_TOKEN; do
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do
             if [ -z "${!name:-}" ]; then
               missing+=("$name")
             fi
@@ -73,6 +72,26 @@ jobs:
           echo "acr_name=$(jq -r '.acrName.value' outputs.json)" >> "$GITHUB_OUTPUT"
           echo "api_container_app_name=$(jq -r '.apiContainerAppName.value' outputs.json)" >> "$GITHUB_OUTPUT"
           echo "api_url=$(jq -r '.apiUrl.value' outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "static_web_app_name=$(jq -r '.staticWebAppName.value' outputs.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Get Static Web Apps deployment token
+        id: static_web_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          token="$(az staticwebapp secrets list \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "${{ steps.infra.outputs.static_web_app_name }}" \
+            --query "properties.apiKey" \
+            --output tsv)"
+
+          if [ -z "$token" ]; then
+            echo "Static Web Apps deployment token was empty." >&2
+            exit 1
+          fi
+
+          echo "::add-mask::$token"
+          echo "deployment_token=$token" >> "$GITHUB_OUTPUT"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -119,7 +138,7 @@ jobs:
       - name: Deploy Static Web App
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          azure_static_web_apps_api_token: ${{ steps.static_web_app.outputs.deployment_token }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: upload
           app_location: web-publish/wwwroot
