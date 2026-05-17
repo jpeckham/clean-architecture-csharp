@@ -51,6 +51,9 @@ param cosmosMongoServerVersion string = '7.0'
 ])
 param staticWebAppSku string = 'Free'
 
+@description('Create Azure RBAC role assignments. Use true for local bootstrap and false for GitHub redeployments because the GitHub identity intentionally cannot assign roles.')
+param manageRoleAssignments bool = true
+
 var suffix = '${appName}-${environmentName}'
 var compactSuffix = take(toLower(replace(suffix, '-', '')), 16)
 var acrName = 'acrcleansocialprod'
@@ -334,7 +337,7 @@ var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefiniti
 var acrPushRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
 var contributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
 
-resource apiKeyVaultAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource apiKeyVaultAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageRoleAssignments) {
   name: guid(keyVault.id, apiIdentity.id, keyVaultSecretsUserRoleId)
   scope: keyVault
   properties: {
@@ -363,7 +366,7 @@ resource apiKeyVaultAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2023-
   }
 }
 
-resource apiBlobAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource apiBlobAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageRoleAssignments) {
   name: guid(storage.id, apiIdentity.id, storageBlobDataContributorRoleId)
   scope: storage
   properties: {
@@ -373,7 +376,7 @@ resource apiBlobAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource apiAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource apiAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageRoleAssignments) {
   name: guid(acr.id, apiIdentity.id, acrPullRoleId)
   scope: acr
   properties: {
@@ -383,7 +386,7 @@ resource apiAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource githubAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource githubAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageRoleAssignments) {
   name: guid(acr.id, githubDeployIdentity.id, acrPushRoleId)
   scope: acr
   properties: {
@@ -393,7 +396,7 @@ resource githubAcrPush 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource githubResourceGroupContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource githubResourceGroupContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageRoleAssignments) {
   name: guid(resourceGroup().id, githubDeployIdentity.id, contributorRoleId)
   properties: {
     roleDefinitionId: contributorRoleId
@@ -523,10 +526,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
     }
   }
   dependsOn: [
-    apiKeyVaultAccess
     apiKeyVaultAccessPolicy
-    apiBlobAccess
-    apiAcrPull
   ]
 }
 

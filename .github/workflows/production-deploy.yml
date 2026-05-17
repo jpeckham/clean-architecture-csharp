@@ -65,6 +65,7 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --template-file "$BICEP_FILE" \
             --parameters "$BICEP_PARAMETERS" \
+            --parameters manageRoleAssignments=false \
             --query properties.outputs \
             --output json > outputs.json
 

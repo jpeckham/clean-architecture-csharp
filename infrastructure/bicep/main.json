@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "10522871146119720432"
+      "templateHash": "13055159305556656486"
     }
   },
   "parameters": {
@@ -118,6 +118,13 @@
       ],
       "metadata": {
         "description": "Static Web Apps SKU. Free keeps MVP hosting cost minimized."
+      }
+    },
+    "manageRoleAssignments": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Create Azure RBAC role assignments. Use true for local bootstrap and false for GitHub redeployments because the GitHub identity intentionally cannot assign roles."
       }
     }
   },
@@ -441,6 +448,7 @@
       }
     },
     {
+      "condition": "[parameters('manageRoleAssignments')]",
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
@@ -477,6 +485,7 @@
       ]
     },
     {
+      "condition": "[parameters('manageRoleAssignments')]",
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix')))]",
@@ -492,6 +501,7 @@
       ]
     },
     {
+      "condition": "[parameters('manageRoleAssignments')]",
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
@@ -507,6 +517,7 @@
       ]
     },
     {
+      "condition": "[parameters('manageRoleAssignments')]",
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
@@ -522,6 +533,7 @@
       ]
     },
     {
+      "condition": "[parameters('manageRoleAssignments')]",
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "name": "[guid(resourceGroup().id, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-github-{0}', variables('suffix'))), variables('contributorRoleId'))]",
@@ -658,10 +670,7 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
-        "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('acrPullRoleId')))]",
-        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix'))), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Storage/storageAccounts', format('st{0}media', variables('compactSuffix'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('storageBlobDataContributorRoleId')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]",
-        "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix'))), variables('keyVaultSecretsUserRoleId')))]",
         "[resourceId('Microsoft.KeyVault/vaults/accessPolicies', parameters('keyVaultName'), 'add')]",
         "[resourceId('Microsoft.App/managedEnvironments', format('cae-{0}', variables('suffix')))]",
         "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-cosmos-mongo-connection-string', parameters('environmentName')))]",
