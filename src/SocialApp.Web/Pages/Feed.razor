@@ -16,7 +16,7 @@
         </div>
         <div class="actions">
             <button type="button" class="secondary" @onclick="RefreshCurrentPostsAsync" disabled="@isBusy">Refresh</button>
-            <button type="button" class="secondary" @onclick="SignOut">Log Out</button>
+            <UserAccountMenu />
         </div>
     </header>
 
@@ -569,12 +569,6 @@
     {
         var targetAuthor = item.QuotedPost?.AuthorHandle ?? item.AuthorHandle;
         return string.Equals(targetAuthor, Session.Handle, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void SignOut()
-    {
-        Session.SignOut();
-        Navigation.NavigateTo("/");
     }
 
     private sealed class PostForm

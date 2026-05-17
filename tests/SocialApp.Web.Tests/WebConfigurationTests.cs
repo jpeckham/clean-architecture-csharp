@@ -142,6 +142,34 @@ public sealed class WebConfigurationTests
         css.Should().Contain(".composer textarea");
     }
 
+    [Fact]
+    public void Authenticated_pages_use_shared_profile_thumbnail_menu()
+    {
+        var root = FindRepositoryRoot();
+        var feed = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "Feed.razor"));
+        var postDetails = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "PostDetails.razor"));
+        var userProfile = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "UserProfile.razor"));
+
+        feed.Should().Contain("<UserAccountMenu");
+        postDetails.Should().Contain("<UserAccountMenu");
+        userProfile.Should().Contain("<UserAccountMenu");
+        feed.Should().NotContain("@onclick=\"SignOut\"");
+        feed.Should().NotContain("private void SignOut()");
+    }
+
+    [Fact]
+    public void User_account_menu_uses_current_profile_thumbnail_and_existing_logout_terminology()
+    {
+        var root = FindRepositoryRoot();
+        var accountMenu = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "UserAccountMenu.razor"));
+
+        accountMenu.Should().Contain("Profile");
+        accountMenu.Should().Contain("Log Out");
+        accountMenu.Should().Contain("GetUserAsync");
+        accountMenu.Should().Contain("Session.SignOut()");
+        accountMenu.Should().Contain("NavigateTo(\"/\")");
+    }
+
     private static string ReadWebStylesheet()
     {
         var root = FindRepositoryRoot();

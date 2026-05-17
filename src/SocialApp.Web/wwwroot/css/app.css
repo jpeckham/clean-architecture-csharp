@@ -269,6 +269,85 @@ form {
     justify-content: flex-end;
 }
 
+.account-menu {
+    position: relative;
+}
+
+.account-menu-button {
+    align-items: center;
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    display: inline-flex;
+    height: 42px;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0;
+    width: 42px;
+}
+
+.account-menu-button:hover:not(:disabled),
+.account-menu-button[aria-expanded="true"],
+.account-menu-button[aria-expanded="True"] {
+    border-color: rgb(45 212 191 / 58%);
+    transform: translateY(-1px);
+}
+
+.account-thumbnail {
+    align-items: center;
+    aspect-ratio: 1;
+    background: var(--accent-muted);
+    border-radius: 999px;
+    color: var(--accent);
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 820;
+    height: 34px;
+    justify-content: center;
+    overflow: hidden;
+    width: 34px;
+}
+
+.account-thumbnail img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+}
+
+.account-menu-popover {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    display: grid;
+    gap: 4px;
+    min-width: 158px;
+    padding: 6px;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 20;
+}
+
+.account-menu-item {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-soft);
+    justify-content: flex-start;
+    min-height: 36px;
+    padding: 0 10px;
+    text-align: left;
+    width: 100%;
+}
+
+.account-menu-item:hover:not(:disabled),
+.account-menu-item:focus-visible {
+    background: rgb(45 212 191 / 10%);
+    border-color: rgb(45 212 191 / 24%);
+    color: var(--text);
+    transform: none;
+}
+
 .post {
     background: var(--surface-raised);
     border: 1px solid var(--border);
