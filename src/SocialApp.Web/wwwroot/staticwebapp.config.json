@@ -1,0 +1,13 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/css/*",
+      "/_framework/*",
+      "/sample-data/*",
+      "/favicon.png",
+      "/icon-192.png",
+      "/appsettings.json"
+    ]
+  }
+}
