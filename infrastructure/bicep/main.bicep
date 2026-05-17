@@ -51,6 +51,9 @@ param cosmosMongoServerVersion string = '7.0'
 ])
 param staticWebAppSku string = 'Free'
 
+@description('Azure Communication Services data residency geography.')
+param communicationDataLocation string = 'United States'
+
 @description('Create Azure RBAC role assignments. Use true for local bootstrap and false for GitHub redeployments because the GitHub identity intentionally cannot assign roles.')
 param manageRoleAssignments bool = true
 
@@ -236,6 +239,38 @@ resource postVideos 'Microsoft.Storage/storageAccounts/blobServices/containers@2
   }
 }
 
+resource emailService 'Microsoft.Communication/emailServices@2025-09-01' = {
+  name: 'email-${suffix}'
+  location: 'global'
+  tags: tags
+  properties: {
+    dataLocation: communicationDataLocation
+  }
+}
+
+resource emailDomain 'Microsoft.Communication/emailServices/domains@2025-09-01' = {
+  parent: emailService
+  name: 'AzureManagedDomain'
+  location: 'global'
+  tags: tags
+  properties: {
+    domainManagement: 'AzureManaged'
+    userEngagementTracking: 'Disabled'
+  }
+}
+
+resource communicationService 'Microsoft.Communication/communicationServices@2025-09-01' = {
+  name: 'comm-${suffix}'
+  location: 'global'
+  tags: tags
+  properties: {
+    dataLocation: communicationDataLocation
+    linkedDomains: [
+      emailDomain.id
+    ]
+  }
+}
+
 resource githubDeployIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'id-github-${suffix}'
   location: location
@@ -328,6 +363,22 @@ resource passwordResetBaseUrlSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-0
   name: 'cleansocial-${environmentName}-password-reset-base-url'
   properties: {
     value: 'https://${webHostName}/reset-password'
+  }
+}
+
+resource acsEmailConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'cleansocial-${environmentName}-acs-email-connection-string'
+  properties: {
+    value: communicationService.listKeys().primaryConnectionString
+  }
+}
+
+resource acsEmailSenderAddressSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'cleansocial-${environmentName}-acs-email-sender-address'
+  properties: {
+    value: 'donotreply@${emailDomain.properties.fromSenderDomain}'
   }
 }
 
@@ -448,6 +499,16 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: passwordResetBaseUrlSecret.properties.secretUri
           identity: apiIdentity.id
         }
+        {
+          name: 'acs-email-connection-string'
+          keyVaultUrl: acsEmailConnectionStringSecret.properties.secretUri
+          identity: apiIdentity.id
+        }
+        {
+          name: 'acs-email-sender-address'
+          keyVaultUrl: acsEmailSenderAddressSecret.properties.secretUri
+          identity: apiIdentity.id
+        }
       ]
     }
     template: {
@@ -483,6 +544,14 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'Web__PasswordResetBaseUrl'
               secretRef: 'password-reset-base-url'
+            }
+            {
+              name: 'AcsEmail__ConnectionString'
+              secretRef: 'acs-email-connection-string'
+            }
+            {
+              name: 'AcsEmail__SenderAddress'
+              secretRef: 'acs-email-sender-address'
             }
             {
               name: 'Media__Provider'

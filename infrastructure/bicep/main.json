@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "13055159305556656486"
+      "templateHash": "4271511636629381420"
     }
   },
   "parameters": {
@@ -118,6 +118,13 @@
       ],
       "metadata": {
         "description": "Static Web Apps SKU. Free keeps MVP hosting cost minimized."
+      }
+    },
+    "communicationDataLocation": {
+      "type": "string",
+      "defaultValue": "United States",
+      "metadata": {
+        "description": "Azure Communication Services data residency geography."
       }
     },
     "manageRoleAssignments": {
@@ -336,6 +343,46 @@
       ]
     },
     {
+      "type": "Microsoft.Communication/emailServices",
+      "apiVersion": "2025-09-01",
+      "name": "[format('email-{0}', variables('suffix'))]",
+      "location": "global",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "dataLocation": "[parameters('communicationDataLocation')]"
+      }
+    },
+    {
+      "type": "Microsoft.Communication/emailServices/domains",
+      "apiVersion": "2025-09-01",
+      "name": "[format('{0}/{1}', format('email-{0}', variables('suffix')), 'AzureManagedDomain')]",
+      "location": "global",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "domainManagement": "AzureManaged",
+        "userEngagementTracking": "Disabled"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Communication/emailServices', format('email-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Communication/communicationServices",
+      "apiVersion": "2025-09-01",
+      "name": "[format('comm-{0}', variables('suffix'))]",
+      "location": "global",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "dataLocation": "[parameters('communicationDataLocation')]",
+        "linkedDomains": [
+          "[resourceId('Microsoft.Communication/emailServices/domains', format('email-{0}', variables('suffix')), 'AzureManagedDomain')]"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Communication/emailServices/domains', format('email-{0}', variables('suffix')), 'AzureManagedDomain')]"
+      ]
+    },
+    {
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
       "apiVersion": "2023-01-31",
       "name": "[format('id-github-{0}', variables('suffix'))]",
@@ -446,6 +493,28 @@
       "properties": {
         "value": "[format('https://{0}/reset-password', parameters('webHostName'))]"
       }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), format('cleansocial-{0}-acs-email-connection-string', parameters('environmentName')))]",
+      "properties": {
+        "value": "[listKeys(resourceId('Microsoft.Communication/communicationServices', format('comm-{0}', variables('suffix'))), '2025-09-01').primaryConnectionString]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Communication/communicationServices', format('comm-{0}', variables('suffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), format('cleansocial-{0}-acs-email-sender-address', parameters('environmentName')))]",
+      "properties": {
+        "value": "[format('donotreply@{0}', reference(resourceId('Microsoft.Communication/emailServices/domains', format('email-{0}', variables('suffix')), 'AzureManagedDomain'), '2025-09-01').fromSenderDomain)]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Communication/emailServices/domains', format('email-{0}', variables('suffix')), 'AzureManagedDomain')]"
+      ]
     },
     {
       "condition": "[parameters('manageRoleAssignments')]",
@@ -590,6 +659,16 @@
               "name": "password-reset-base-url",
               "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-password-reset-base-url', parameters('environmentName'))), '2023-07-01').secretUri]",
               "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
+            },
+            {
+              "name": "acs-email-connection-string",
+              "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-acs-email-connection-string', parameters('environmentName'))), '2023-07-01').secretUri]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
+            },
+            {
+              "name": "acs-email-sender-address",
+              "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-acs-email-sender-address', parameters('environmentName'))), '2023-07-01').secretUri]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]"
             }
           ]
         },
@@ -626,6 +705,14 @@
                 {
                   "name": "Web__PasswordResetBaseUrl",
                   "secretRef": "password-reset-base-url"
+                },
+                {
+                  "name": "AcsEmail__ConnectionString",
+                  "secretRef": "acs-email-connection-string"
+                },
+                {
+                  "name": "AcsEmail__SenderAddress",
+                  "secretRef": "acs-email-sender-address"
                 },
                 {
                   "name": "Media__Provider",
@@ -670,6 +757,8 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+        "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-acs-email-connection-string', parameters('environmentName')))]",
+        "[resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), format('cleansocial-{0}-acs-email-sender-address', parameters('environmentName')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-api-{0}', variables('suffix')))]",
         "[resourceId('Microsoft.KeyVault/vaults/accessPolicies', parameters('keyVaultName'), 'add')]",
         "[resourceId('Microsoft.App/managedEnvironments', format('cae-{0}', variables('suffix')))]",
