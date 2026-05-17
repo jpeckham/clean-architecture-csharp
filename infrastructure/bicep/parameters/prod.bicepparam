@@ -1,0 +1,13 @@
+using '../main.bicep'
+
+param location = 'eastus'
+param environmentName = 'prod'
+param appName = 'cleansocial'
+param keyVaultName = 'kv-jdpeckham'
+param dnsZoneName = 'azure.jdpeckham.com'
+param webHostName = 'cleansocial.azure.jdpeckham.com'
+param githubRepositoryOwner = 'jpeckham'
+param githubRepositoryName = 'clean-architecture-csharp'
+param githubBranch = 'main'
+param githubEnvironmentName = 'production'
+param staticWebAppSku = 'Free'

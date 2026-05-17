@@ -1,0 +1,102 @@
+name: Production Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  RESOURCE_GROUP: rg-jdpeckham
+  BICEP_FILE: infrastructure/bicep/main.bicep
+  BICEP_PARAMETERS: infrastructure/bicep/parameters/prod.bicepparam
+  API_IMAGE_NAME: cleansocial-api
+
+jobs:
+  deploy:
+    name: Deploy Azure production
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy or update infrastructure
+        id: infra
+        shell: bash
+        run: |
+          set -euo pipefail
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file "$BICEP_FILE" \
+            --parameters "$BICEP_PARAMETERS" \
+            --query properties.outputs \
+            --output json > outputs.json
+
+          echo "acr_login_server=$(jq -r '.acrLoginServer.value' outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "acr_name=$(jq -r '.acrName.value' outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "api_container_app_name=$(jq -r '.apiContainerAppName.value' outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "api_url=$(jq -r '.apiUrl.value' outputs.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test SocialApp.sln --configuration Release
+
+      - name: ACR login
+        run: az acr login --name "${{ steps.infra.outputs.acr_name }}"
+
+      - name: Build and push API image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${{ steps.infra.outputs.acr_login_server }}/${API_IMAGE_NAME}:${GITHUB_SHA}"
+          docker build \
+            --file src/SocialApp.Api/Dockerfile \
+            --tag "$image" \
+            .
+          docker push "$image"
+          echo "API_IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: Update API container app
+        run: |
+          az containerapp update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "${{ steps.infra.outputs.api_container_app_name }}" \
+            --image "$API_IMAGE"
+
+      - name: Write Blazor production appsettings
+        shell: bash
+        run: |
+          cat > src/SocialApp.Web/wwwroot/appsettings.json <<EOF
+          {
+            "ApiBaseAddress": "${{ steps.infra.outputs.api_url }}"
+          }
+          EOF
+
+      - name: Build Web
+        run: dotnet publish src/SocialApp.Web/SocialApp.Web.csproj --configuration Release --output web-publish
+
+      - name: Deploy Static Web App
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: web-publish/wwwroot
+          skip_app_build: true
