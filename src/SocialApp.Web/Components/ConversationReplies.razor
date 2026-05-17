@@ -6,9 +6,12 @@
         @foreach (var reply in Replies!)
         {
             <article class="conversation-reply clickable-conversation-reply" role="link" tabindex="0" @onclick="() => OpenReplyAsync(reply)" @onkeydown="args => HandleReplyKeyDownAsync(args, reply)">
-                <div class="post-author-line">
-                    <a class="author-link" href="@UserUrl(reply.AuthorHandle)" @onclick:stopPropagation="true">@reply.AuthorHandle</a>
-                    <time class="post-time" datetime="@reply.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(reply.CreatedAt)</time>
+                <div class="post-author-block compact-author-block">
+                    <AuthorThumbnail ImageUrl="@reply.AuthorProfileImageUrl" AuthorHandle="@reply.AuthorHandle" />
+                    <div class="post-author-line">
+                        <a class="author-link" href="@UserUrl(reply.AuthorHandle)" @onclick:stopPropagation="true">@reply.AuthorHandle</a>
+                        <time class="post-time" datetime="@reply.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(reply.CreatedAt)</time>
+                    </div>
                 </div>
                 <PostContent ContentSegments="@reply.ContentSegments" />
                 <ConversationReplies Replies="reply.RecentReplies" OpenRequested="OpenRequested" />

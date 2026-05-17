@@ -112,6 +112,46 @@ public sealed class SocialAppApiSliceTests
     }
 
     [Fact]
+    public async Task Post_reads_include_current_profile_image_for_originals_reposts_quotes_and_replies()
+    {
+        await using var factory = CreateInMemoryFactory();
+        var client = factory.CreateClient();
+        var ada = await CreateAccountAsync(client, "@ada", "ada@example.com");
+        var grace = await CreateAccountAsync(client, "@grace", "grace@example.com");
+        var linus = await CreateAccountAsync(client, "@linus", "linus@example.com");
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var originalResponse = await client.PostAsJsonAsync("/api/posts", new { content = "Original before avatar" });
+        var original = await originalResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", grace.SessionToken);
+        var replyResponse = await client.PostAsJsonAsync($"/api/posts/{original!.Id}/replies", new { content = "Reply before avatar" });
+        var reply = await replyResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", linus.SessionToken);
+        var repostResponse = await client.PostAsJsonAsync($"/api/posts/{original.Id}/reposts", new { content = "Quote before avatar" });
+        var repost = await repostResponse.Content.ReadFromJsonAsync<CreatePostResult>();
+
+        var adaImageUrl = await UploadProfileImageAsync(client, ada.SessionToken!);
+        var graceImageUrl = await UploadProfileImageAsync(client, grace.SessionToken!);
+        var linusImageUrl = await UploadProfileImageAsync(client, linus.SessionToken!);
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ada.SessionToken);
+        var feed = await client.GetFromJsonAsync<RecentPostsResult>("/api/posts/recent?limit=20");
+
+        var originalView = feed!.Posts.Single(p => p.Id == original.Id);
+        originalView.AuthorProfileImageUrl.Should().Be(adaImageUrl);
+        originalView.RecentReplies.Should().ContainSingle(p =>
+            p.Id == reply!.Id &&
+            p.AuthorProfileImageUrl == graceImageUrl);
+
+        var repostView = feed.Posts.Single(p => p.Id == repost!.Id);
+        repostView.AuthorProfileImageUrl.Should().Be(linusImageUrl);
+        repostView.QuotedPost.Should().NotBeNull();
+        repostView.QuotedPost!.AuthorProfileImageUrl.Should().Be(adaImageUrl);
+    }
+
+    [Fact]
     public async Task Like_endpoints_require_valid_bearer_token()
     {
         await using var factory = CreateInMemoryFactory();
@@ -796,6 +836,20 @@ public sealed class SocialAppApiSliceTests
         return (await response.Content.ReadFromJsonAsync<AuthResult>())!;
     }
 
+    private static async Task<string> UploadProfileImageAsync(HttpClient client, string sessionToken)
+    {
+        client.DefaultRequestHeaders.Authorization = new("Bearer", sessionToken);
+        using var imageContent = new MultipartFormDataContent();
+        imageContent.Add(new ByteArrayContent(new byte[] { 1, 2, 3, 4 }), "image", "avatar.jpg");
+        imageContent.Last().Headers.ContentType = new("image/jpeg");
+
+        var uploadResponse = await client.PostAsync("/api/users/me/profile-image", imageContent);
+        uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await uploadResponse.Content.ReadFromJsonAsync<ProfileImageResult>();
+        result!.ProfileImage.Should().NotBeNull();
+        return result.ProfileImage!.ImageUrl;
+    }
+
     private sealed record AuthResult(bool Succeeded, string Message, string? Handle, string? SessionToken);
     private sealed record CreatePostResult(bool Succeeded, string Message, Guid? Id, string? AuthorHandle);
     private sealed record SimpleResult(bool Succeeded, string Message);
@@ -807,7 +861,7 @@ public sealed class SocialAppApiSliceTests
     private sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
     private sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
     private sealed record IndividualPostResult(bool Succeeded, string Message, PostSummaryResult? Post);
-    private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content);
+    private sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content, string? AuthorProfileImageUrl = null);
     private sealed record PostMediaSummaryResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
     private sealed record PostContentSegmentResult(int Sequence, string Text, string? MentionHandle, string? HashtagText = null);
     private sealed record PostSummaryResult(
@@ -821,7 +875,11 @@ public sealed class SocialAppApiSliceTests
         int RepostCount,
         bool RepostedByCurrentReader,
         QuotedPostSummaryResult? QuotedPost,
-        IReadOnlyList<PostMediaSummaryResult> Media)
+        IReadOnlyList<PostMediaSummaryResult> Media,
+        string? AuthorProfileImageUrl = null,
+        int ReplyCount = 0,
+        IReadOnlyList<PostSummaryResult>? RecentReplies = null,
+        QuotedPostSummaryResult? ReplyTarget = null)
     {
         public string Content => string.Concat(ContentSegments.Select(s => s.Text));
     }

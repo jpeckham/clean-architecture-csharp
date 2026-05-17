@@ -29,7 +29,7 @@
                 </div>
             </div>
             <EditForm Model="@post" OnValidSubmit="CreatePostAsync">
-                <InputTextArea @bind-Value="post.Content" class="composer-input" placeholder="Share an update with your network." />
+                <textarea @bind="post.Content" @bind:event="oninput" class="composer-input" placeholder="Share an update with your network."></textarea>
                 <div class="composer-media">
                     <label class="file-button secondary-file">
                         <InputFile OnChange="SelectMediaAsync" accept="image/*,video/*" multiple disabled="@(isBusy || isUploadingMedia)" />

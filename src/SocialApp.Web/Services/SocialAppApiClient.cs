@@ -222,7 +222,7 @@ public sealed record ProfileImageSummaryResult(Guid AssetId, string StorageKey, 
 public sealed record UserProfileResult(bool Succeeded, string Message, string? Handle, string? DisplayName, ProfileImageSummaryResult? ProfileImage, IReadOnlyList<PostSummaryResult> Posts);
 public sealed record RecentPostsResult(IReadOnlyList<PostSummaryResult> Posts);
 public sealed record IndividualPostResult(bool Succeeded, string Message, PostSummaryResult? Post);
-public sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryResult>? Media = null);
+public sealed record QuotedPostSummaryResult(Guid Id, string AuthorHandle, string? AuthorProfileImageUrl, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryResult>? Media = null);
 public sealed record PostMediaSummaryResult(
     Guid AssetId,
     string Kind,
@@ -239,6 +239,7 @@ public sealed record PostContentSegmentResult(int Sequence, string Text, string?
 public sealed record PostSummaryResult(
     Guid Id,
     string AuthorHandle,
+    string? AuthorProfileImageUrl,
     IReadOnlyList<PostContentSegmentResult> ContentSegments,
     Guid? ParentPostId,
     Guid? OriginalPostId,

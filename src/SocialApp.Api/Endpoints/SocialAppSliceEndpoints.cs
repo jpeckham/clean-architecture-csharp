@@ -214,8 +214,8 @@ public static class SocialAppSliceEndpoints
         var presenter = new ViewUserPresenter();
         new ViewUserController(new ViewUserInteractor(users, profilePosts, presenter)).View(handle, reader.Handle);
         return presenter.ViewModel is { Succeeded: true } viewModel
-            ? Results.Ok(ToHttpResponse(viewModel, httpRequest.HttpContext, links))
-            : Results.NotFound(ToHttpResponse(presenter.ViewModel!, httpRequest.HttpContext, links));
+            ? Results.Ok(ToHttpResponse(viewModel, users, httpRequest.HttpContext, links))
+            : Results.NotFound(ToHttpResponse(presenter.ViewModel!, users, httpRequest.HttpContext, links));
     }
 
     private static async Task<IResult> UploadMyProfileImage(
@@ -379,6 +379,7 @@ public static class SocialAppSliceEndpoints
 
     private static UserProfileHttpResult ToHttpResponse(
         ViewUserViewModel viewModel,
+        IUserGateway users,
         HttpContext httpContext,
         LinkGenerator links) =>
         new(
@@ -387,7 +388,7 @@ public static class SocialAppSliceEndpoints
             viewModel.Handle,
             viewModel.DisplayName,
             ToHttpProfileImage(viewModel.ProfileImage, httpContext, links),
-            viewModel.Posts.Select(ToHttpUserPostSummary).ToArray());
+            viewModel.Posts.Select(post => ToHttpUserPostSummary(post, users, httpContext, links)).ToArray());
 
     private static ProfileImageHttpResult? ToHttpProfileImage(
         ProfileImageViewModel? image,
@@ -530,7 +531,7 @@ public static class SocialAppSliceEndpoints
             : Results.BadRequest(presenter.ViewModel);
     }
 
-    private static IResult GetPost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
+    private static IResult GetPost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts, IUserGateway users, LinkGenerator links)
     {
         var reader = ReadAuthenticatedUser(httpRequest, sessions);
         if (reader is null)
@@ -542,8 +543,8 @@ public static class SocialAppSliceEndpoints
         new DisplayPostController(new DisplayPostInteractor(posts, presenter)).Display(postId, reader.Handle);
 
         return presenter.ViewModel is { Succeeded: true } viewModel
-            ? Results.Ok(ToHttpResponse(viewModel))
-            : Results.NotFound(ToHttpResponse(presenter.ViewModel!));
+            ? Results.Ok(ToHttpResponse(viewModel, users, httpRequest.HttpContext, links))
+            : Results.NotFound(ToHttpResponse(presenter.ViewModel!, users, httpRequest.HttpContext, links));
     }
 
     private static IResult DeletePost(Guid postId, HttpRequest httpRequest, ISessionGateway sessions, IPostGateway posts)
@@ -744,7 +745,7 @@ public static class SocialAppSliceEndpoints
         return Results.Ok(presenter.ViewModel);
     }
 
-    private static IResult RecentPosts(HttpRequest httpRequest, int? limit, ISessionGateway sessions, IPostGateway posts)
+    private static IResult RecentPosts(HttpRequest httpRequest, int? limit, ISessionGateway sessions, IPostGateway posts, IUserGateway users, LinkGenerator links)
     {
         var reader = ReadAuthenticatedUser(httpRequest, sessions);
         if (reader is null)
@@ -755,10 +756,10 @@ public static class SocialAppSliceEndpoints
         var presenter = new ScrollPostsPresenter();
         var controller = new ScrollPostsController(new ScrollPostsInteractor(posts, presenter));
         controller.Scroll(reader.Handle, Math.Clamp(limit ?? 20, 1, 100));
-        return Results.Ok(ToHttpResponse(presenter.ViewModel!));
+        return Results.Ok(ToHttpResponse(presenter.ViewModel!, users, httpRequest.HttpContext, links));
     }
 
-    private static IResult SearchPosts(HttpRequest httpRequest, string query, ISessionGateway sessions, IPostGateway posts, IPostSearchGateway search)
+    private static IResult SearchPosts(HttpRequest httpRequest, string query, ISessionGateway sessions, IPostGateway posts, IPostSearchGateway search, IUserGateway users, LinkGenerator links)
     {
         var reader = ReadAuthenticatedUser(httpRequest, sessions);
         if (reader is null)
@@ -768,7 +769,7 @@ public static class SocialAppSliceEndpoints
 
         var presenter = new SearchPostsPresenter();
         new SearchPostsInteractor(search, presenter, posts).Handle(new(query, reader.Handle));
-        return Results.Ok(ToHttpResponse(presenter.ViewModel!));
+        return Results.Ok(ToHttpResponse(presenter.ViewModel!, users, httpRequest.HttpContext, links));
     }
 
     private static SocialApp.User.Entities.UserAccount? ReadAuthenticatedUser(HttpRequest request, ISessionGateway sessions)
@@ -809,19 +810,20 @@ public static class SocialAppSliceEndpoints
         ProfileImageHttpResult? ProfileImage,
         IReadOnlyList<UserPostSummaryHttpResult> Posts);
 
-    private static PostsHttpResult ToHttpResponse(ScrollPostsViewModel viewModel) =>
-        new(viewModel.Posts.Select(ToHttpPostSummary).ToArray());
+    private static PostsHttpResult ToHttpResponse(ScrollPostsViewModel viewModel, IUserGateway users, HttpContext httpContext, LinkGenerator links) =>
+        new(viewModel.Posts.Select(post => ToHttpPostSummary(post, users, httpContext, links)).ToArray());
 
-    private static PostsHttpResult ToHttpResponse(SearchPostsViewModel viewModel) =>
-        new(viewModel.Posts.Select(ToHttpPostSummary).ToArray());
+    private static PostsHttpResult ToHttpResponse(SearchPostsViewModel viewModel, IUserGateway users, HttpContext httpContext, LinkGenerator links) =>
+        new(viewModel.Posts.Select(post => ToHttpPostSummary(post, users, httpContext, links)).ToArray());
 
-    private static IndividualPostHttpResult ToHttpResponse(DisplayPostViewModel viewModel) =>
-        new(viewModel.Succeeded, viewModel.Message, viewModel.Post is null ? null : ToHttpPostSummary(viewModel.Post));
+    private static IndividualPostHttpResult ToHttpResponse(DisplayPostViewModel viewModel, IUserGateway users, HttpContext httpContext, LinkGenerator links) =>
+        new(viewModel.Succeeded, viewModel.Message, viewModel.Post is null ? null : ToHttpPostSummary(viewModel.Post, users, httpContext, links));
 
-    private static PostSummaryHttpResult ToHttpPostSummary(PostSummaryViewModel post) =>
+    private static PostSummaryHttpResult ToHttpPostSummary(PostSummaryViewModel post, IUserGateway users, HttpContext httpContext, LinkGenerator links) =>
         new(
             post.Id,
             post.AuthorHandle,
+            ProfileImageUrlFor(users, post.AuthorHandle, httpContext, links),
             post.ContentSegments.Select(s => new PostContentSegmentHttpResult(s.Sequence, s.Text, s.MentionHandle, s.HashtagText)).ToArray(),
             post.ParentPostId,
             post.OriginalPostId,
@@ -831,15 +833,16 @@ public static class SocialAppSliceEndpoints
             post.RepostCount,
             post.RepostedByCurrentReader,
             post.ReplyCount,
-            post.RecentReplies.Select(ToHttpPostSummary).ToArray(),
-            post.ReplyTarget is null ? null : new(post.ReplyTarget.Id, post.ReplyTarget.AuthorHandle, post.ReplyTarget.Content, post.ReplyTarget.CreatedAt, post.ReplyTarget.Media?.Select(ToHttpPostMedia).ToArray()),
-            post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt, post.QuotedPost.Media?.Select(ToHttpPostMedia).ToArray()),
+            post.RecentReplies.Select(reply => ToHttpPostSummary(reply, users, httpContext, links)).ToArray(),
+            post.ReplyTarget is null ? null : ToHttpQuotedPostSummary(post.ReplyTarget, users, httpContext, links),
+            post.QuotedPost is null ? null : ToHttpQuotedPostSummary(post.QuotedPost, users, httpContext, links),
             post.Media?.Select(ToHttpPostMedia).ToArray() ?? Array.Empty<PostMediaSummaryHttpResult>());
 
-    private static UserPostSummaryHttpResult ToHttpUserPostSummary(ViewUserPostSummaryViewModel post) =>
+    private static UserPostSummaryHttpResult ToHttpUserPostSummary(ViewUserPostSummaryViewModel post, IUserGateway users, HttpContext httpContext, LinkGenerator links) =>
         new(
             post.Id,
             post.AuthorHandle,
+            ProfileImageUrlFor(users, post.AuthorHandle, httpContext, links),
             post.ContentSegments.Select(s => new PostContentSegmentHttpResult(s.Sequence, s.Text, s.MentionHandle, s.HashtagText)).ToArray(),
             post.ParentPostId,
             post.OriginalPostId,
@@ -848,8 +851,35 @@ public static class SocialAppSliceEndpoints
             post.LikedByCurrentReader,
             post.RepostCount,
             post.RepostedByCurrentReader,
-            post.QuotedPost is null ? null : new(post.QuotedPost.Id, post.QuotedPost.AuthorHandle, post.QuotedPost.Content, post.QuotedPost.CreatedAt, post.QuotedPost.Media?.Select(ToHttpUserPostMedia).ToArray()),
+            post.QuotedPost is null ? null : ToHttpUserQuotedPostSummary(post.QuotedPost, users, httpContext, links),
             post.Media?.Select(ToHttpUserPostMedia).ToArray() ?? Array.Empty<PostMediaSummaryHttpResult>());
+
+    private static QuotedPostSummaryHttpResult ToHttpQuotedPostSummary(QuotedPostSummaryViewModel post, IUserGateway users, HttpContext httpContext, LinkGenerator links) =>
+        new(
+            post.Id,
+            post.AuthorHandle,
+            ProfileImageUrlFor(users, post.AuthorHandle, httpContext, links),
+            post.Content,
+            post.CreatedAt,
+            post.Media?.Select(ToHttpPostMedia).ToArray());
+
+    private static QuotedPostSummaryHttpResult ToHttpUserQuotedPostSummary(ViewUserQuotedPostSummaryViewModel post, IUserGateway users, HttpContext httpContext, LinkGenerator links) =>
+        new(
+            post.Id,
+            post.AuthorHandle,
+            ProfileImageUrlFor(users, post.AuthorHandle, httpContext, links),
+            post.Content,
+            post.CreatedAt,
+            post.Media?.Select(ToHttpUserPostMedia).ToArray());
+
+    private static string? ProfileImageUrlFor(IUserGateway users, string authorHandle, HttpContext httpContext, LinkGenerator links)
+    {
+        var profileImage = users.FindByHandle(authorHandle)?.ProfileImage;
+        return profileImage is null
+            ? null
+            : links.GetPathByName(httpContext, GetProfileImageRouteName, new { assetId = profileImage.AssetId })
+                ?? throw new InvalidOperationException("Profile image route is not registered.");
+    }
 
     private static PostMediaSummaryHttpResult ToHttpPostMedia(PostMediaSummaryViewModel media) =>
         new(
@@ -882,8 +912,8 @@ public static class SocialAppSliceEndpoints
     private sealed record PostContentSegmentHttpResult(int Sequence, string Text, string? MentionHandle, string? HashtagText = null);
     private sealed record PostsHttpResult(IReadOnlyList<PostSummaryHttpResult> Posts);
     private sealed record IndividualPostHttpResult(bool Succeeded, string Message, PostSummaryHttpResult? Post);
-    private sealed record QuotedPostSummaryHttpResult(Guid Id, string AuthorHandle, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryHttpResult>? Media = null);
+    private sealed record QuotedPostSummaryHttpResult(Guid Id, string AuthorHandle, string? AuthorProfileImageUrl, string Content, DateTimeOffset CreatedAt, IReadOnlyList<PostMediaSummaryHttpResult>? Media = null);
     private sealed record PostMediaSummaryHttpResult(Guid AssetId, string Kind, string ContentType, long ByteLength, int? Width, int? Height, long? DurationMs, int SortOrder, string? ThumbnailKey, string? AltText, string? MediaUrl);
-    private sealed record PostSummaryHttpResult(Guid Id, string AuthorHandle, IReadOnlyList<PostContentSegmentHttpResult> ContentSegments, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, int ReplyCount, IReadOnlyList<PostSummaryHttpResult> RecentReplies, QuotedPostSummaryHttpResult? ReplyTarget, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
-    private sealed record UserPostSummaryHttpResult(Guid Id, string AuthorHandle, IReadOnlyList<PostContentSegmentHttpResult> ContentSegments, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
+    private sealed record PostSummaryHttpResult(Guid Id, string AuthorHandle, string? AuthorProfileImageUrl, IReadOnlyList<PostContentSegmentHttpResult> ContentSegments, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, int ReplyCount, IReadOnlyList<PostSummaryHttpResult> RecentReplies, QuotedPostSummaryHttpResult? ReplyTarget, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
+    private sealed record UserPostSummaryHttpResult(Guid Id, string AuthorHandle, string? AuthorProfileImageUrl, IReadOnlyList<PostContentSegmentHttpResult> ContentSegments, Guid? ParentPostId, Guid? OriginalPostId, DateTimeOffset CreatedAt, int LikeCount, bool LikedByCurrentReader, int RepostCount, bool RepostedByCurrentReader, QuotedPostSummaryHttpResult? QuotedPost, IReadOnlyList<PostMediaSummaryHttpResult> Media);
 }

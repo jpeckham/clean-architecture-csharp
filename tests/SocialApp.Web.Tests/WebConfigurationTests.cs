@@ -101,6 +101,29 @@ public sealed class WebConfigurationTests
     }
 
     [Fact]
+    public void Post_card_and_conversation_replies_render_author_profile_thumbnails()
+    {
+        var root = FindRepositoryRoot();
+        var postCard = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "PostCard.razor"));
+        var replies = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "ConversationReplies.razor"));
+
+        postCard.Should().Contain("<AuthorThumbnail ImageUrl=\"@Item.AuthorProfileImageUrl\"");
+        postCard.Should().Contain("<AuthorThumbnail ImageUrl=\"@Item.QuotedPost.AuthorProfileImageUrl\"");
+        postCard.Should().Contain("<AuthorThumbnail ImageUrl=\"@Item.ReplyTarget.AuthorProfileImageUrl\"");
+        replies.Should().Contain("<AuthorThumbnail ImageUrl=\"@reply.AuthorProfileImageUrl\"");
+    }
+
+    [Fact]
+    public void Post_card_composers_do_not_bubble_typing_keys_to_post_navigation()
+    {
+        var root = FindRepositoryRoot();
+        var postCard = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Components", "PostCard.razor"));
+
+        postCard.Should().Contain("class=\"reply-composer\" @onclick:stopPropagation=\"true\" @onkeydown:stopPropagation=\"true\"");
+        postCard.Should().Contain("class=\"repost-composer\" @onclick:stopPropagation=\"true\" @onkeydown:stopPropagation=\"true\"");
+    }
+
+    [Fact]
     public void Conversation_replies_component_renders_nested_replies()
     {
         typeof(Components.ConversationReplies).Should().NotBeNull();
@@ -140,6 +163,17 @@ public sealed class WebConfigurationTests
         css.Should().Contain(".composer-header");
         css.Should().Contain(".composer-submit-row");
         css.Should().Contain(".composer textarea");
+    }
+
+    [Fact]
+    public void Feed_composer_updates_submit_state_while_typing()
+    {
+        var root = FindRepositoryRoot();
+        var feed = File.ReadAllText(Path.Combine(root, "src", "SocialApp.Web", "Pages", "Feed.razor"));
+
+        feed.Should().Contain("@bind=\"post.Content\"");
+        feed.Should().Contain("@bind:event=\"oninput\"");
+        feed.Should().Contain("string.IsNullOrWhiteSpace(post.Content) && selectedMedia.Count == 0");
     }
 
     [Fact]

@@ -2,9 +2,12 @@
 
 <article class="post clickable-post" role="link" tabindex="0" @onclick="OpenPostAsync" @onkeydown="HandleKeyDownAsync">
     <div class="post-header">
-        <div class="post-author-line">
-            <a class="author-link" href="@UserUrl(Item.AuthorHandle)" @onclick:stopPropagation="true">@Item.AuthorHandle</a>
-            <time class="post-time" datetime="@Item.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.CreatedAt)</time>
+        <div class="post-author-block">
+            <AuthorThumbnail ImageUrl="@Item.AuthorProfileImageUrl" AuthorHandle="@Item.AuthorHandle" />
+            <div class="post-author-line">
+                <a class="author-link" href="@UserUrl(Item.AuthorHandle)" @onclick:stopPropagation="true">@Item.AuthorHandle</a>
+                <time class="post-time" datetime="@Item.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.CreatedAt)</time>
+            </div>
         </div>
         <div class="post-header-actions">
             <button type="button" class="secondary compact" @onclick="ShareAsync" @onclick:stopPropagation="true" disabled="@IsBusy">Share</button>
@@ -17,9 +20,12 @@
     @if (Item.QuotedPost is not null)
     {
         <div class="quoted-post clickable-quoted-post" role="link" tabindex="0" @onclick="() => OpenQuotedPostAsync(Item.QuotedPost)" @onclick:stopPropagation="true" @onkeydown="args => HandleQuotedPostKeyDownAsync(args, Item.QuotedPost)" @onkeydown:stopPropagation="true">
-            <div class="post-author-line">
-                <a class="author-link" href="@UserUrl(Item.QuotedPost.AuthorHandle)" @onclick:stopPropagation="true">@Item.QuotedPost.AuthorHandle</a>
-                <time class="post-time" datetime="@Item.QuotedPost.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.QuotedPost.CreatedAt)</time>
+            <div class="post-author-block compact-author-block">
+                <AuthorThumbnail ImageUrl="@Item.QuotedPost.AuthorProfileImageUrl" AuthorHandle="@Item.QuotedPost.AuthorHandle" />
+                <div class="post-author-line">
+                    <a class="author-link" href="@UserUrl(Item.QuotedPost.AuthorHandle)" @onclick:stopPropagation="true">@Item.QuotedPost.AuthorHandle</a>
+                    <time class="post-time" datetime="@Item.QuotedPost.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.QuotedPost.CreatedAt)</time>
+                </div>
             </div>
             @if (!string.IsNullOrWhiteSpace(Item.QuotedPost.Content))
             {
@@ -31,9 +37,12 @@
     @if (Item.ReplyTarget is not null)
     {
         <div class="quoted-post reply-target clickable-quoted-post" role="link" tabindex="0" @onclick="() => OpenQuotedPostAsync(Item.ReplyTarget)" @onclick:stopPropagation="true" @onkeydown="args => HandleQuotedPostKeyDownAsync(args, Item.ReplyTarget)" @onkeydown:stopPropagation="true">
-            <div class="post-author-line">
-                <a class="author-link" href="@UserUrl(Item.ReplyTarget.AuthorHandle)" @onclick:stopPropagation="true">@Item.ReplyTarget.AuthorHandle</a>
-                <time class="post-time" datetime="@Item.ReplyTarget.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.ReplyTarget.CreatedAt)</time>
+            <div class="post-author-block compact-author-block">
+                <AuthorThumbnail ImageUrl="@Item.ReplyTarget.AuthorProfileImageUrl" AuthorHandle="@Item.ReplyTarget.AuthorHandle" />
+                <div class="post-author-line">
+                    <a class="author-link" href="@UserUrl(Item.ReplyTarget.AuthorHandle)" @onclick:stopPropagation="true">@Item.ReplyTarget.AuthorHandle</a>
+                    <time class="post-time" datetime="@Item.ReplyTarget.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@FormatTimestamp(Item.ReplyTarget.CreatedAt)</time>
+                </div>
             </div>
             @if (!string.IsNullOrWhiteSpace(Item.ReplyTarget.Content))
             {
@@ -78,7 +87,7 @@
     </div>
     @if (ActiveReplyPostId == Item.Id)
     {
-        <div class="reply-composer" @onclick:stopPropagation="true">
+        <div class="reply-composer" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
             <div class="reply-input-row">
                 <span class="reply-prefix">@($"@{Item.AuthorHandle}")</span>
                 <InputTextArea Value="@ReplyContent" ValueChanged="ReplyContentChanged" ValueExpression="() => ReplyContent" placeholder="Write a reply..." />
@@ -95,7 +104,7 @@
     }
     @if (ActiveRepostPostId == Item.Id && !Item.RepostedByCurrentReader)
     {
-        <div class="repost-composer" @onclick:stopPropagation="true">
+        <div class="repost-composer" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
             <InputTextArea Value="@RepostContent" ValueChanged="RepostContentChanged" ValueExpression="() => RepostContent" placeholder="Add a note..." />
             <div class="repost-composer-actions">
                 <button type="button" class="compact" @onclick="RepostAsync" disabled="@IsBusy">
@@ -220,6 +229,7 @@
         return new(
             quotedPost.Id,
             quotedPost.AuthorHandle,
+            quotedPost.AuthorProfileImageUrl,
             contentSegments,
             null,
             null,

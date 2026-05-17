@@ -385,6 +385,47 @@ form {
     justify-content: flex-end;
 }
 
+.post-author-block {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+}
+
+.compact-author-block {
+    gap: 8px;
+}
+
+.author-thumbnail {
+    align-items: center;
+    aspect-ratio: 1;
+    background: var(--accent-muted);
+    border: 1px solid rgb(45 212 191 / 24%);
+    border-radius: 999px;
+    color: var(--accent);
+    display: inline-flex;
+    flex: 0 0 34px;
+    font-size: 13px;
+    font-weight: 820;
+    height: 34px;
+    justify-content: center;
+    overflow: hidden;
+    width: 34px;
+}
+
+.compact-author-block .author-thumbnail {
+    flex-basis: 28px;
+    font-size: 11px;
+    height: 28px;
+    width: 28px;
+}
+
+.author-thumbnail img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+}
+
 .post-author-line {
     align-items: baseline;
     display: flex;
